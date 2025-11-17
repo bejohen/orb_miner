@@ -1,6 +1,6 @@
 import { getWallet, getBalances, getSolBalance } from '../utils/wallet';
 import { fetchBoard, fetchMiner, fetchTreasury } from '../utils/accounts';
-import { buildDeployInstruction, getSquareMask, sendAndConfirmTransaction } from '../utils/program';
+import { buildDeployInstruction, sendAndConfirmTransaction } from '../utils/program';
 import { buildClaimSolInstruction, buildClaimOreInstruction } from '../utils/program';
 import { swapOrbToSol } from '../utils/jupiter';
 import { getCurrentSlot } from '../utils/solana';
@@ -67,7 +67,7 @@ async function checkAndClaimRewards(): Promise<void> {
         if ((config.claimType === 'orb' || config.claimType === 'both') &&
             miningOrb >= config.claimThresholdOrb) {
           logger.info(`Mining ORB rewards (${miningOrb.toFixed(2)}) above threshold (${config.claimThresholdOrb}), claiming...`);
-          instructions.push(buildClaimOreInstruction());
+          instructions.push(await buildClaimOreInstruction());
         }
       }
     }
@@ -173,8 +173,7 @@ async function deployToRound(): Promise<boolean> {
       return true;
     }
 
-    const squareMask = getSquareMask('all');
-    const deployIx = await buildDeployInstruction(config.solPerDeployment, squareMask);
+    const deployIx = await buildDeployInstruction(config.solPerDeployment);
     const signature = await sendAndConfirmTransaction([deployIx], 'Auto-Deploy');
 
     logger.info(`✅ Deployment successful: ${signature}`);

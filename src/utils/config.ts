@@ -11,6 +11,7 @@ export interface Config {
   rpcEndpoint: string;
   orbProgramId: PublicKey;
   orbTokenMint: PublicKey;
+  orbFeeCollector: PublicKey;
   network: string;
 
   // Bot Action
@@ -81,6 +82,7 @@ export function loadConfig(): Config {
       rpcEndpoint: getEnv('RPC_ENDPOINT', 'https://api.mainnet-beta.solana.com'),
       orbProgramId: new PublicKey(getEnv('ORB_PROGRAM_ID')),
       orbTokenMint: new PublicKey(getEnv('ORB_TOKEN_MINT')),
+      orbFeeCollector: new PublicKey(getEnv('ORB_FEE_COLLECTOR', '577HqbrnKM4micsY52rW8j6i9W8SmzV3FprfBCDneNpF')),
       network: getEnv('NETWORK', 'mainnet-beta'),
 
       // Bot Action

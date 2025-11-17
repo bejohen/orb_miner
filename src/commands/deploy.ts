@@ -37,8 +37,8 @@ export async function deployCommand(): Promise<void> {
       }
     }
 
-    // Get square mask (deploy to all 25 squares)
-    const squareMask = getSquareMask('all');
+    // Get square mask (always 0 for ORB)
+    const squareMask = getSquareMask();
     logger.info(`Deploying ${config.solPerDeployment} SOL to all 25 squares`);
 
     // Dry run check
@@ -50,7 +50,7 @@ export async function deployCommand(): Promise<void> {
     }
 
     // Build and send deploy instruction
-    const deployIx = await buildDeployInstruction(config.solPerDeployment, squareMask);
+    const deployIx = await buildDeployInstruction(config.solPerDeployment);
     const signature = await sendAndConfirmTransaction([deployIx], 'Deploy');
 
     logger.info(`Deployment successful!`);

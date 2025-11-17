@@ -35,7 +35,7 @@ export async function claimCommand(): Promise<void> {
         // Claim ORB from mining
         if ((config.claimType === 'orb' || config.claimType === 'both') && miningOrb > 0) {
           logger.info('Adding claim ORB instruction (mining)');
-          instructions.push(buildClaimOreInstruction());
+          instructions.push(await buildClaimOreInstruction());
           totalOrbClaimed += miningOrb;
         }
       } else {

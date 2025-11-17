@@ -3,86 +3,71 @@ import {
   TransactionInstruction,
   Transaction,
   LAMPORTS_PER_SOL,
+  PublicKey,
 } from '@solana/web3.js';
-import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from '@solana/spl-token';
 import BN from 'bn.js';
 import { config } from './config';
 import { getWallet } from './wallet';
 import { getConnection } from './solana';
-import { getBoardPDA, getRoundPDA, getMinerPDA, getStakePDA, getAutomationPDA, fetchBoard } from './accounts';
+import { getMinerPDA, getStakePDA, getAutomationPDA } from './accounts';
 import logger from './logger';
 import { retry } from './retry';
 
 // Instruction discriminators (extracted from real ORB transactions)
 const DEPLOY_DISCRIMINATOR = Buffer.from([0x00, 0x40, 0x42, 0x0f, 0x00, 0x00, 0x00, 0x00]);
-const CLAIM_SOL_DISCRIMINATOR = Buffer.from([0x8b, 0x71, 0xb3, 0xbd, 0xbe, 0x1e, 0x84, 0xc3]);
-const CLAIM_ORE_DISCRIMINATOR = Buffer.from([0x84, 0xc7, 0x0b, 0xa0, 0xb1, 0x27, 0x38, 0x72]);
+// ORB uses simple 1-byte discriminators from ORE enum
+// ClaimSOL = 3, ClaimORE = 4 (defined inline in functions)
 const STAKE_DISCRIMINATOR = Buffer.from([0xce, 0xb0, 0xca, 0x12, 0xc8, 0xd1, 0xb3, 0x6c]);
 
 // Convert deployment strategy to 25-bit mask
-// For "all" strategy, all 25 bits are set (deploy to all squares)
-export function getSquareMask(strategy: 'all' | 'specific', squares?: number[]): number {
-  if (strategy === 'all') {
-    // All 25 bits set: 0b1111111111111111111111111 = 0x1FFFFFF
-    return 0x1FFFFFF;
-  }
-
-  if (strategy === 'specific' && squares) {
-    let mask = 0;
-    for (const square of squares) {
-      if (square >= 0 && square < 25) {
-        mask |= (1 << square);
-      }
-    }
-    return mask;
-  }
-
-  throw new Error('Invalid deployment strategy');
+// NOTE: Based on reverse engineering, ORB requires squares mask to be 0, not a bitmask!
+// The actual square deployment is controlled by other parameters.
+export function getSquareMask(): number {
+  // Always return 0 - this is required by ORB's deploy instruction
+  return 0;
 }
 
-// Build Deploy instruction (based on ORE source code)
+// Build Deploy instruction (reverse engineered from ORB transactions)
 export async function buildDeployInstruction(
-  amount: number,
-  squareMask: number
+  amount: number
 ): Promise<TransactionInstruction> {
   const wallet = getWallet();
-  const [boardPDA] = getBoardPDA();
   const [minerPDA] = getMinerPDA(wallet.publicKey);
   const [automationPDA] = getAutomationPDA(wallet.publicKey);
-
-  // Get current board to find round ID
-  const board = await fetchBoard();
-  const [roundPDA] = getRoundPDA(board.roundId);
 
   // Convert SOL amount to lamports
   const amountLamports = new BN(amount * LAMPORTS_PER_SOL);
 
-  // Build instruction data based on ORE Deploy struct:
-  // pub struct Deploy { amount: [u8; 8], squares: [u8; 4] }
-  // Total: 8 bytes discriminator + 8 bytes amount + 4 bytes squares = 20 bytes
-  const data = Buffer.alloc(20);
-  DEPLOY_DISCRIMINATOR.copy(data, 0);
-  amountLamports.toArrayLike(Buffer, 'le', 8).copy(data, 8);
-  data.writeUInt32LE(squareMask, 16); // 4-byte squares mask
+  // Build instruction data (34 bytes total):
+  // - 8 bytes: discriminator (0x0040420f00000000)
+  // - 8 bytes: amount (u64 LE)
+  // - 4 bytes: squares mask (u32 LE) - MUST BE 0
+  // - 4 bytes: unknown field (u32 LE) - always 0
+  // - 4 bytes: square count (u32 LE) - always 25
+  // - 6 bytes: padding (all zeros)
+  const data = Buffer.alloc(34);
+  DEPLOY_DISCRIMINATOR.copy(data, 0);              // Discriminator (8 bytes)
+  amountLamports.toArrayLike(Buffer, 'le', 8).copy(data, 8); // Amount (8 bytes)
+  data.writeUInt32LE(0, 16);                       // Squares mask - MUST BE 0 (4 bytes)
+  data.writeUInt32LE(0, 20);                       // Unknown field (4 bytes)
+  data.writeUInt32LE(25, 24);                      // Square count (4 bytes)
+  // Padding bytes 28-33 are already 0 from Buffer.alloc
 
-  logger.debug(`Deploy instruction: amount=${amount} SOL, mask=0x${squareMask.toString(16)}`);
+  logger.debug(`Deploy instruction: amount=${amount} SOL (${amountLamports.toString()} lamports)`);
 
-  // Account keys based on ORE deploy.rs:
-  // 1. signer - Transaction signer
-  // 2. authority - Writable authority (same as signer)
-  // 3. automation - Writable automation PDA [AUTOMATION, authority]
-  // 4. board - Writable board account
-  // 5. miner - Writable miner PDA [MINER, authority]
-  // 6. round - Writable round account
-  // 7. system_program - System program
+  // Account keys (5 accounts):
+  // 0. signer - Wallet (signer, writable)
+  // 1. automation - Automation PDA (writable)
+  // 2. fee_collector - Fee collector address (writable)
+  // 3. miner - Miner PDA (writable)
+  // 4. system_program - System program (read-only)
   const keys = [
-    { pubkey: wallet.publicKey, isSigner: true, isWritable: true },  // signer
-    { pubkey: wallet.publicKey, isSigner: false, isWritable: true }, // authority (same as signer)
-    { pubkey: automationPDA, isSigner: false, isWritable: true },    // automation PDA
-    { pubkey: boardPDA, isSigner: false, isWritable: true },         // board
-    { pubkey: minerPDA, isSigner: false, isWritable: true },         // miner
-    { pubkey: roundPDA, isSigner: false, isWritable: true },         // round
-    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }, // system_program
+    { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
+    { pubkey: automationPDA, isSigner: false, isWritable: true },
+    { pubkey: config.orbFeeCollector, isSigner: false, isWritable: true },
+    { pubkey: minerPDA, isSigner: false, isWritable: true },
+    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
   ];
 
   return new TransactionInstruction({
@@ -92,14 +77,15 @@ export async function buildDeployInstruction(
   });
 }
 
-// Build Claim SOL instruction
+// Build Claim SOL instruction (based on reverse engineered transaction)
 export function buildClaimSolInstruction(): TransactionInstruction {
   const wallet = getWallet();
   const [minerPDA] = getMinerPDA(wallet.publicKey);
 
-  const data = Buffer.alloc(8);
-  CLAIM_SOL_DISCRIMINATOR.copy(data, 0);
+  // ClaimSOL instruction: 1 byte discriminator (0x03)
+  const data = Buffer.from([0x03]);
 
+  // 3 accounts: wallet, miner PDA, system program
   const keys = [
     { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
     { pubkey: minerPDA, isSigner: false, isWritable: true },
@@ -113,19 +99,41 @@ export function buildClaimSolInstruction(): TransactionInstruction {
   });
 }
 
-// Build Claim ORE instruction
-export function buildClaimOreInstruction(): TransactionInstruction {
+// Build Claim ORE instruction (based on reverse engineered transaction)
+export async function buildClaimOreInstruction(): Promise<TransactionInstruction> {
   const wallet = getWallet();
   const [minerPDA] = getMinerPDA(wallet.publicKey);
 
-  const data = Buffer.alloc(8);
-  CLAIM_ORE_DISCRIMINATOR.copy(data, 0);
+  // ClaimORE instruction: 1 byte discriminator (0x04)
+  const data = Buffer.from([0x04]);
 
+  // Get Treasury PDA
+  const [treasuryPDA] = PublicKey.findProgramAddressSync([Buffer.from('treasury')], config.orbProgramId);
+
+  // Get token accounts
+  const walletOrbAta = await getAssociatedTokenAddress(config.orbTokenMint, wallet.publicKey);
+  const treasuryOrbAta = await getAssociatedTokenAddress(config.orbTokenMint, treasuryPDA, true);
+
+  // 9 accounts based on successful transaction analysis:
+  // 0: Wallet (signer, writable)
+  // 1: Miner PDA (writable)
+  // 2: ORB Token Mint
+  // 3: Wallet ORB Token Account (writable)
+  // 4: Treasury PDA (writable)
+  // 5: Treasury ORB Token Account (writable)
+  // 6: System Program
+  // 7: Token Program
+  // 8: Associated Token Program
   const keys = [
     { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
     { pubkey: minerPDA, isSigner: false, isWritable: true },
-    { pubkey: config.orbTokenMint, isSigner: false, isWritable: true },
+    { pubkey: config.orbTokenMint, isSigner: false, isWritable: false },
+    { pubkey: walletOrbAta, isSigner: false, isWritable: true },
+    { pubkey: treasuryPDA, isSigner: false, isWritable: true },
+    { pubkey: treasuryOrbAta, isSigner: false, isWritable: true },
+    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+    { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
   ];
 
   return new TransactionInstruction({
