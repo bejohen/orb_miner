@@ -182,7 +182,10 @@ async function isProfitableToMine(
     }
 
     // Calculate expected ORB rewards based on YOUR actual share
-    // Base reward: 4 ORB per round (split proportionally)
+    // Base reward: 4 ORB per round with hybrid distribution:
+    //   - 50% of time: split proportionally among winners
+    //   - 50% of time: one winner gets all 4 ORB (weighted random)
+    // Expected value is the same for both: yourShare × 4
     const baseRewardExpected = yourShareOfTotal * 4;
 
     // Motherload reward: 1/625 chance to hit, split proportionally
