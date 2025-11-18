@@ -9,6 +9,15 @@ import { retry } from './retry';
 
 const WSOL_MINT = 'So11111111111111111111111111111111111111112'; // Wrapped SOL
 
+// Fallback endpoints if primary fails (use /swap/v1 for lite-api)
+const FALLBACK_ENDPOINTS = [
+  'https://lite-api.jup.ag/swap/v1',
+  'https://quote-api.jup.ag/v6',
+  'https://api.jup.ag/v6',
+];
+
+let workingEndpoint: string | null = null;
+
 // Get price of ORB in SOL and USD
 export async function getOrbPrice(): Promise<{ priceInSol: number; priceInUsd: number }> {
   try {
@@ -33,7 +42,37 @@ export async function getOrbPrice(): Promise<{ priceInSol: number; priceInUsd: n
   }
 }
 
-// Get swap quote from Jupiter (ORB -> SOL)
+// Try to get quote from a specific endpoint
+async function tryGetQuote(
+  endpoint: string,
+  params: any
+): Promise<JupiterQuote | null> {
+  try {
+    const quoteUrl = `${endpoint}/quote`;
+    const response = await axios.get(quoteUrl, {
+      params,
+      timeout: 15000,
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    if (response.data && response.data.outAmount) {
+      // Cache working endpoint
+      if (!workingEndpoint) {
+        workingEndpoint = endpoint;
+        logger.info(`✅ Found working Jupiter endpoint: ${endpoint}`);
+      }
+      return response.data as JupiterQuote;
+    }
+    return null;
+  } catch (error: any) {
+    logger.debug(`Endpoint ${endpoint} failed: ${error.code || error.message}`);
+    return null;
+  }
+}
+
+// Get swap quote from Jupiter (ORB -> SOL) with automatic fallback
 export async function getSwapQuote(
   inputAmount: number,
   slippageBps?: number
@@ -46,21 +85,49 @@ export async function getSwapQuote(
       inputMint: config.orbTokenMint.toBase58(),
       outputMint: WSOL_MINT,
       amount: inputAmountLamports.toString(),
-      slippageBps: slippageBps || config.slippageBps,
+      slippageBps: (slippageBps || config.slippageBps).toString(),
+      onlyDirectRoutes: 'false',
+      asLegacyTransaction: 'false',
     };
 
-    logger.debug('Requesting Jupiter quote:', params);
+    logger.debug('Requesting Jupiter quote with params:', params);
 
-    const response = await retry(
-      async () => await axios.get(`${config.jupiterApiUrl}/quote`, { params }),
-      { maxRetries: 2 },
-      'Jupiter quote'
-    );
+    // Try working endpoint first if we have one cached
+    if (workingEndpoint) {
+      const quote = await tryGetQuote(workingEndpoint, params);
+      if (quote) {
+        logger.info(`Quote: ${inputAmount} ORB → ${Number(quote.outAmount) / 1e9} SOL (impact: ${quote.priceImpactPct}%)`);
+        return quote;
+      }
+      // If cached endpoint fails, clear it
+      logger.warn(`Cached endpoint ${workingEndpoint} failed, trying fallbacks...`);
+      workingEndpoint = null;
+    }
 
-    const quote = response.data as JupiterQuote;
-    logger.info(`Quote: ${inputAmount} ORB → ${Number(quote.outAmount) / 1e9} SOL (impact: ${quote.priceImpactPct}%)`);
+    // Try primary endpoint from config
+    const primaryQuote = await tryGetQuote(config.jupiterApiUrl, params);
+    if (primaryQuote) {
+      logger.info(`Quote: ${inputAmount} ORB → ${Number(primaryQuote.outAmount) / 1e9} SOL (impact: ${primaryQuote.priceImpactPct}%)`);
+      return primaryQuote;
+    }
 
-    return quote;
+    // Try fallback endpoints
+    logger.warn('Primary endpoint failed, trying fallbacks...');
+    for (const fallbackUrl of FALLBACK_ENDPOINTS) {
+      if (fallbackUrl === config.jupiterApiUrl) continue; // Skip if same as primary
+
+      logger.debug(`Trying fallback: ${fallbackUrl}`);
+      const quote = await tryGetQuote(fallbackUrl, params);
+      if (quote) {
+        logger.info(`✅ Fallback successful: ${fallbackUrl}`);
+        logger.info(`Quote: ${inputAmount} ORB → ${Number(quote.outAmount) / 1e9} SOL (impact: ${quote.priceImpactPct}%)`);
+        logger.info(`💡 Consider updating .env: JUPITER_API_URL=${fallbackUrl}`);
+        return quote;
+      }
+    }
+
+    logger.error('❌ All Jupiter endpoints failed');
+    return null;
   } catch (error) {
     logger.error('Failed to get swap quote:', error);
     return null;
@@ -73,16 +140,25 @@ export async function executeSwap(quote: JupiterQuote): Promise<string | null> {
     const wallet = getWallet();
     const connection = getConnection();
 
+    // Use working endpoint if available, otherwise use config
+    const swapEndpoint = workingEndpoint || config.jupiterApiUrl;
+
     // Get swap transaction from Jupiter
-    logger.info('Requesting swap transaction from Jupiter...');
+    logger.info(`Requesting swap transaction from ${swapEndpoint}...`);
     const swapResponse = await axios.post<JupiterSwapResponse>(
-      `${config.jupiterApiUrl}/swap`,
+      `${swapEndpoint}/swap`,
       {
         quoteResponse: quote,
-        userPublicKey: wallet.publicKey.toBase58(),
+        userPublicKey: wallet.publicKey.toString(),
         wrapAndUnwrapSol: true,
         dynamicComputeUnitLimit: true,
         prioritizationFeeLamports: 'auto',
+      },
+      {
+        timeout: 30000,
+        headers: {
+          'Content-Type': 'application/json',
+        },
       }
     );
 
@@ -99,13 +175,16 @@ export async function executeSwap(quote: JupiterQuote): Promise<string | null> {
     logger.info('Sending swap transaction...');
     const signature = await retry(
       async () => {
-        const sig = await connection.sendTransaction(transaction, {
+        const sig = await connection.sendRawTransaction(transaction.serialize(), {
           skipPreflight: false,
           maxRetries: 3,
         });
 
         // Wait for confirmation
-        await connection.confirmTransaction(sig, 'confirmed');
+        const confirmation = await connection.confirmTransaction(sig, 'confirmed');
+        if (confirmation.value.err) {
+          throw new Error(`Transaction failed: ${confirmation.value.err}`);
+        }
         return sig;
       },
       { maxRetries: config.deployMaxRetries },

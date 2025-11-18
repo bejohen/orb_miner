@@ -1,8 +1,10 @@
 import { getWallet, getBalances, getSolBalance } from '../utils/wallet';
 import {
   getAutomationPDA,
+  getMinerPDA,
   fetchBoard,
   fetchMiner,
+  fetchStake,
   fetchTreasury
 } from '../utils/accounts';
 import {
@@ -11,6 +13,7 @@ import {
   buildExecuteAutomationInstruction,
   buildClaimSolInstruction,
   buildClaimOreInstruction,
+  buildClaimYieldInstruction,
   buildStakeInstruction,
   AutomationStrategy
 } from '../utils/program';
@@ -18,7 +21,7 @@ import { getConnection, getCurrentSlot } from '../utils/solana';
 import { swapOrbToSol } from '../utils/jupiter';
 import { config } from '../utils/config';
 import { sleep } from '../utils/retry';
-import { TransactionInstruction } from '@solana/web3.js';
+import { TransactionInstruction, SystemProgram, LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
 import BN from 'bn.js';
 import logger from '../utils/logger';
 
@@ -39,6 +42,7 @@ let isRunning = true;
 let signalHandlersRegistered = false;
 let lastRewardsCheck = 0;
 let lastStakeCheck = 0;
+let lastSwapCheck = 0;
 
 // Setup graceful shutdown
 function setupSignalHandlers() {
@@ -209,11 +213,29 @@ async function autoClaimRewards(): Promise<void> {
         instructions.push(buildClaimSolInstruction());
       }
 
-      // Auto-claim ORB
+      // Auto-claim ORB from mining
       if (miningOrb >= config.autoClaimOrbThreshold) {
         logger.info(`Mining ORB rewards (${miningOrb.toFixed(2)}) >= threshold (${config.autoClaimOrbThreshold}), claiming...`);
         instructions.push(await buildClaimOreInstruction());
       }
+    }
+
+    // Check staking rewards
+    const stake = await fetchStake(wallet.publicKey);
+    if (stake) {
+      const stakingOrb = Number(stake.rewardsOre) / 1e9;
+
+      logger.debug(`Staking check: ${stakingOrb.toFixed(6)} ORB available (threshold: ${config.autoClaimStakingOrbThreshold})`);
+
+      // Auto-claim ORB from staking
+      if (stakingOrb >= config.autoClaimStakingOrbThreshold) {
+        logger.info(`Staking ORB rewards (${stakingOrb.toFixed(4)}) >= threshold (${config.autoClaimStakingOrbThreshold}), claiming...`);
+        instructions.push(await buildClaimYieldInstruction(stakingOrb));
+      } else if (stakingOrb > 0) {
+        logger.debug(`Staking ORB rewards (${stakingOrb.toFixed(4)}) below threshold (${config.autoClaimStakingOrbThreshold}), waiting...`);
+      }
+    } else {
+      logger.debug('No stake account found');
     }
 
     if (instructions.length > 0 && !config.dryRun) {
@@ -223,6 +245,35 @@ async function autoClaimRewards(): Promise<void> {
   } catch (error) {
     logger.error('Auto-claim failed:', error);
   }
+}
+
+/**
+ * Build instruction to close automation account
+ */
+function buildCloseAutomationInstruction(): TransactionInstruction {
+  const wallet = getWallet();
+  const [minerPDA] = getMinerPDA(wallet.publicKey);
+  const [automationPDA] = getAutomationPDA(wallet.publicKey);
+
+  // Build automate instruction with executor = Pubkey::default() to signal closure
+  const AUTOMATE_DISCRIMINATOR = 0x00;
+  const data = Buffer.alloc(34);
+  data.writeUInt8(AUTOMATE_DISCRIMINATOR, 0);
+  // Rest is all zeros to signal closure
+
+  const keys = [
+    { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
+    { pubkey: automationPDA, isSigner: false, isWritable: true },
+    { pubkey: PublicKey.default, isSigner: false, isWritable: true }, // default pubkey signals close
+    { pubkey: minerPDA, isSigner: false, isWritable: true },
+    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+  ];
+
+  return new TransactionInstruction({
+    keys,
+    programId: config.orbProgramId,
+    data,
+  });
 }
 
 /**
@@ -243,26 +294,82 @@ async function autoRefundAutomation(automationInfo: any): Promise<boolean> {
       return false;
     }
 
-    // Check if we have enough ORB to swap
+    // Get total ORB balance
     const balances = await getBalances();
-    const orbAvailable = balances.orb - config.minOrbToKeep;
+    const orbToSwap = Math.max(0, balances.orb - config.minOrbToKeep);
 
-    if (orbAvailable < config.swapOrbAmount) {
-      logger.error(`❌ Insufficient ORB to swap. Have: ${orbAvailable.toFixed(2)}, Need: ${config.swapOrbAmount}`);
+    if (orbToSwap < 0.1) {
+      logger.error(`❌ Insufficient ORB to swap. Have: ${balances.orb.toFixed(2)}, Reserve: ${config.minOrbToKeep}`);
+      logger.warn('💡 Tip: Lower MIN_ORB_TO_KEEP in .env or claim more ORB rewards');
       return false;
     }
 
-    logger.info(`Swapping ${config.swapOrbAmount} ORB to SOL to refund automation...`);
-    const result = await swapOrbToSol(config.swapOrbAmount, config.slippageBps);
+    // Swap ALL available ORB
+    logger.info(`Swapping ALL available ORB to refund automation...`);
+    logger.info(`Total ORB: ${balances.orb.toFixed(2)} | Reserve: ${config.minOrbToKeep} | Swapping: ${orbToSwap.toFixed(2)}`);
 
-    if (result.success) {
-      logger.info(`✅ Auto-swap successful! Received ${result.solReceived?.toFixed(4)} SOL`);
+    const result = await swapOrbToSol(orbToSwap, config.slippageBps);
 
-      // TODO: Transfer SOL to automation account
-      // This would require a transfer instruction to the automation PDA
-      logger.info('💡 SOL added to wallet. Automation will use it on next deployment.');
+    if (result.success && result.solReceived) {
+      logger.info(`✅ Auto-swap successful! Received ${result.solReceived.toFixed(4)} SOL`);
 
-      return true;
+      // Transfer SOL to automation PDA
+      const wallet = getWallet();
+      const [automationPDA] = getAutomationPDA(wallet.publicKey);
+      const transferAmount = Math.floor(result.solReceived * LAMPORTS_PER_SOL);
+
+      logger.info(`Transferring ${result.solReceived.toFixed(4)} SOL to automation account...`);
+
+      const transferInstruction = SystemProgram.transfer({
+        fromPubkey: wallet.publicKey,
+        toPubkey: automationPDA,
+        lamports: transferAmount,
+      });
+
+      if (!config.dryRun) {
+        const signature = await sendAndConfirmTransaction([transferInstruction], 'Refund Automation');
+        logger.info(`✅ Transfer completed: ${signature}`);
+
+        // Wait a moment and re-check if automation balance actually updated
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const updatedInfo = await getAutomationInfo();
+
+        if (!updatedInfo) {
+          logger.error('❌ Failed to fetch updated automation info');
+          return false;
+        }
+
+        const updatedBalanceSol = updatedInfo.balance / 1e9;
+        logger.info(`Automation balance after transfer: ${updatedBalanceSol.toFixed(6)} SOL`);
+
+        // Check if balance actually increased
+        if (updatedBalanceSol < balanceSol + (result.solReceived * 0.5)) {
+          logger.warn('⚠️  Transfer succeeded but automation balance did not update!');
+          logger.warn('💡 ORB program tracks balance internally - direct transfers don\'t work.');
+          logger.info('🔄 Automatically closing and recreating automation account...');
+
+          // Close automation account to reclaim SOL
+          const closeInstruction = buildCloseAutomationInstruction();
+          try {
+            const closeSig = await sendAndConfirmTransaction([closeInstruction], 'Close Automation');
+            logger.info(`✅ Automation account closed: ${closeSig}`);
+            logger.info('💰 SOL reclaimed to wallet. Bot will recreate automation on next cycle.');
+
+            // Return false to stop deployment attempts - bot will recreate automation next round
+            return false;
+          } catch (closeError) {
+            logger.error('❌ Failed to close automation account:', closeError);
+            logger.warn('💡 Bot will continue trying. May need manual intervention.');
+            return false;
+          }
+        }
+
+        logger.info(`✅ Automation refund successful! Balance updated to ${updatedBalanceSol.toFixed(6)} SOL`);
+        return true;
+      } else {
+        logger.info('[DRY RUN] Would transfer SOL to automation account');
+        return true;
+      }
     } else {
       logger.error('❌ Auto-swap failed');
       return false;
@@ -270,6 +377,31 @@ async function autoRefundAutomation(automationInfo: any): Promise<boolean> {
   } catch (error) {
     logger.error('Auto-refund failed:', error);
     return false;
+  }
+}
+
+/**
+ * Auto-swap wrapper: Periodically check and refund automation account
+ */
+async function autoSwapCheck(): Promise<void> {
+  try {
+    const now = Date.now();
+    if (now - lastSwapCheck < config.checkRewardsIntervalMs) {
+      return;
+    }
+    lastSwapCheck = now;
+
+    logger.debug('Checking automation balance for auto-swap...');
+    const automationInfo = await getAutomationInfo();
+
+    if (!automationInfo) {
+      logger.debug('No automation account found, skipping swap check');
+      return;
+    }
+
+    await autoRefundAutomation(automationInfo);
+  } catch (error) {
+    logger.error('Auto-swap check failed:', error);
   }
 }
 
@@ -331,7 +463,10 @@ async function autoMineRound(automationInfo: any): Promise<boolean> {
       // Reload automation info after refund
       const updatedInfo = await getAutomationInfo();
       if (!updatedInfo || updatedInfo.balance < updatedInfo.costPerRound) {
-        logger.error('❌ Refund insufficient. Stopping.');
+        logger.warn('⚠️  Transfer complete but automation balance still low.');
+        logger.warn('💡 The ORB program tracks balance internally - direct transfers may not work.');
+        logger.warn('💡 Consider closing and recreating automation account with fresh funds.');
+        logger.warn('💡 Or wait for more ORB rewards to accumulate and swap again.');
         return false;
       }
     }
@@ -595,6 +730,9 @@ export async function smartBotCommand(): Promise<void> {
         // Auto-stake excess ORB periodically
         await autoStakeOrb();
 
+        // Auto-swap to refund automation periodically
+        await autoSwapCheck();
+
         // Get current round
         const board = await fetchBoard();
         const currentRoundId = board.roundId.toString();
@@ -609,8 +747,33 @@ export async function smartBotCommand(): Promise<void> {
           // Reload automation info for current state
           automationInfo = await getAutomationInfo();
           if (!automationInfo) {
-            logger.error('Lost automation account. Exiting.');
-            break;
+            logger.warn('⚠️  Automation account not found. Recreating...');
+            const setupSuccess = await autoSetupAutomation();
+
+            if (!setupSuccess) {
+              logger.error('Failed to recreate automation. Exiting.');
+              break;
+            }
+
+            // Wait for account propagation
+            logger.info('Waiting for new automation account to propagate...');
+            await sleep(2000);
+
+            // Reload automation info
+            automationInfo = await getAutomationInfo();
+            if (!automationInfo) {
+              logger.error('Failed to load recreated automation info. Exiting.');
+              break;
+            }
+
+            const balance = automationInfo.balance / 1e9;
+            const solPerRound = automationInfo.costPerRound / 1e9;
+            const estimatedRounds = Math.floor(automationInfo.balance / automationInfo.costPerRound);
+
+            logger.info(`✅ Automation recreated successfully`);
+            logger.info(`Balance: ${balance.toFixed(6)} SOL`);
+            logger.info(`Cost per round: ${solPerRound.toFixed(4)} SOL`);
+            logger.info(`Estimated rounds: ~${estimatedRounds}`);
           }
 
           // Auto-mine the new round

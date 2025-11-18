@@ -380,6 +380,53 @@ export async function buildClaimOreInstruction(): Promise<TransactionInstruction
   });
 }
 
+// Build ClaimYield instruction (claim staking rewards)
+export async function buildClaimYieldInstruction(amount: number): Promise<TransactionInstruction> {
+  const wallet = getWallet();
+  const [stakePDA] = getStakePDA(wallet.publicKey);
+
+  // ClaimYield instruction: 1 byte discriminator (0x0C = 12) + 8 bytes amount (u64)
+  const data = Buffer.alloc(9);
+  data.writeUInt8(0x0C, 0); // Discriminator
+  const amountBN = new BN(amount * 1e9); // Convert to lamports
+  amountBN.toArrayLike(Buffer, 'le', 8).copy(data, 1); // Amount (little-endian u64)
+
+  // Get Treasury PDA
+  const [treasuryPDA] = PublicKey.findProgramAddressSync([Buffer.from('treasury')], config.orbProgramId);
+
+  // Get token accounts
+  const walletOrbAta = await getAssociatedTokenAddress(config.orbTokenMint, wallet.publicKey);
+  const treasuryOrbAta = await getAssociatedTokenAddress(config.orbTokenMint, treasuryPDA, true);
+
+  // 9 accounts (from orb-idl.json claimYield instruction):
+  // 0: Signer (wallet, writable)
+  // 1: Mint (ORB token mint)
+  // 2: Recipient (wallet ORB token account, writable)
+  // 3: Stake PDA (writable)
+  // 4: Treasury PDA (writable)
+  // 5: Treasury Tokens (treasury ORB token account, writable)
+  // 6: System Program
+  // 7: Token Program
+  // 8: Associated Token Program
+  const keys = [
+    { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
+    { pubkey: config.orbTokenMint, isSigner: false, isWritable: false },
+    { pubkey: walletOrbAta, isSigner: false, isWritable: true },
+    { pubkey: stakePDA, isSigner: false, isWritable: true },
+    { pubkey: treasuryPDA, isSigner: false, isWritable: true },
+    { pubkey: treasuryOrbAta, isSigner: false, isWritable: true },
+    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+    { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+  ];
+
+  return new TransactionInstruction({
+    keys,
+    programId: config.orbProgramId,
+    data,
+  });
+}
+
 // Build Stake instruction
 export function buildStakeInstruction(amount: number): TransactionInstruction {
   const wallet = getWallet();
@@ -488,6 +535,7 @@ export default {
   buildCheckpointInstruction,
   buildClaimSolInstruction,
   buildClaimOreInstruction,
+  buildClaimYieldInstruction,
   buildStakeInstruction,
   sendAndConfirmTransaction,
 };

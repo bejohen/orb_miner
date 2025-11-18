@@ -248,27 +248,47 @@ export async function fetchStake(authority: PublicKey): Promise<Stake | null> {
 
   const data = accountInfo.data;
 
-  // Parse Stake structure (PARTIALLY KNOWN - needs more investigation)
-  // Based on actual account data analysis:
-  // - Discriminator: 8 bytes (0x6c00000000000000)
-  // - Authority: 32 bytes (wallet public key)
-  // - Balance: 8 bytes (staked ORB amount) - CONFIRMED
-  // - Unknown fields: remaining bytes need proper identification
+  // Parse Stake structure (from orb-idl.json)
+  // Fields (after 8-byte discriminator):
+  // - authority: 32 bytes (Pubkey)
+  // - balance: 8 bytes (u64) - staked amount
+  // - last_claim_at: 8 bytes (i64)
+  // - last_deposit_at: 8 bytes (i64)
+  // - last_withdraw_at: 8 bytes (i64)
+  // - rewards_factor: 16 bytes (Numeric/I80F48)
+  // - rewards: 8 bytes (u64) - CLAIMABLE ORB REWARDS!
+  // - lifetime_rewards: 8 bytes (u64)
+  // - is_seeker: 8 bytes (u64)
   let offset = 8; // Skip discriminator
 
+  const stakeAuthority = new PublicKey(data.slice(offset, offset + 32));
+  offset += 32;
+
+  const balance = deserializeU64(data, offset);
+  offset += 8;
+
+  // Skip timestamps (last_claim_at, last_deposit_at, last_withdraw_at)
+  offset += 8 + 8 + 8; // 24 bytes
+
+  // Skip rewards_factor (Numeric = 16 bytes)
+  offset += 16;
+
+  // Read claimable rewards (ORB only for staking)
+  const rewardsOre = deserializeU64(data, offset);
+  offset += 8;
+
+  const lifetimeRewardsOre = deserializeU64(data, offset);
+
   const stake: Stake = {
-    authority: new PublicKey(data.slice(offset, offset + 32)),
-    balance: deserializeU64(data, offset + 32),
-    // TODO: The following fields are INCORRECT - they are not claimable rewards
-    // These appear to be reward factors or cumulative values that need calculation
-    // Setting to 0 until we properly reverse-engineer the structure
-    rewardsSol: new BN(0), // deserializeU64(data, offset + 40), // NOT claimable - unknown field
-    rewardsOre: new BN(0), // deserializeU64(data, offset + 48), // NOT claimable - unknown field
-    lifetimeRewardsSol: new BN(0), // deserializeU64(data, offset + 56),
-    lifetimeRewardsOre: deserializeU64(data, offset + 64), // This appears to be lifetime cumulative
+    authority: stakeAuthority,
+    balance,
+    rewardsSol: new BN(0), // Staking only gives ORB rewards, not SOL
+    rewardsOre,
+    lifetimeRewardsSol: new BN(0), // Staking only gives ORB rewards
+    lifetimeRewardsOre,
   };
 
-  logger.debug(`Stake: balance=${stake.balance.toString()} (claimable rewards calculation needs implementation)`);
+  logger.debug(`Stake: balance=${stake.balance.toString()}, claimable ORB=${rewardsOre.toString()}`);
 
   return stake;
 }

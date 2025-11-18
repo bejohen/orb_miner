@@ -31,6 +31,7 @@ export interface Config {
   // Smart Bot - Auto-Claim Thresholds
   autoClaimSolThreshold: number;
   autoClaimOrbThreshold: number;
+  autoClaimStakingOrbThreshold: number;
 
   // Claim Settings (legacy - for backward compatibility)
   autoClaimEnabled: boolean;
@@ -117,6 +118,7 @@ export function loadConfig(): Config {
       // Smart Bot - Auto-Claim Thresholds
       autoClaimSolThreshold: getEnvNumber('AUTO_CLAIM_SOL_THRESHOLD', 0.1),
       autoClaimOrbThreshold: getEnvNumber('AUTO_CLAIM_ORB_THRESHOLD', 1.0),
+      autoClaimStakingOrbThreshold: getEnvNumber('AUTO_CLAIM_STAKING_ORB_THRESHOLD', 0.5),
 
       // Claim Settings (legacy - for backward compatibility)
       autoClaimEnabled: getEnvBoolean('AUTO_CLAIM_ENABLED', true),
