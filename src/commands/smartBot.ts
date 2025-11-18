@@ -853,7 +853,7 @@ async function autoMineRound(automationInfo: any): Promise<boolean> {
 
     if (miner && miner.checkpointId.lt(board.roundId)) {
       const roundsBehind = board.roundId.sub(miner.checkpointId).toNumber();
-      ui.info(`Catching up ${roundsBehind} missed round(s)...`);
+      ui.info(`Checkpointing ${roundsBehind} previous round(s)...`);
 
       // Checkpoint in batches (max 10 per transaction due to compute limits)
       const maxCheckpointsPerTx = 10;
@@ -898,7 +898,7 @@ async function autoMineRound(automationInfo: any): Promise<boolean> {
         }
       }
 
-      ui.success(`Caught up ${totalCheckpointed} round(s)`);
+      ui.success(`Checkpointed ${totalCheckpointed} round(s)`);
 
       // Re-fetch board after checkpointing to get current round
       // (round may have advanced during checkpointing)
@@ -1004,7 +1004,7 @@ async function autoMineRound(automationInfo: any): Promise<boolean> {
 
     // Handle checkpoint required error
     if (errorMsg.includes('not checkpointed') || errorMsg.includes('checkpoint')) {
-      ui.info('Catching up on previous rounds...');
+      ui.info('Checkpointing previous rounds...');
 
       try {
         const { buildCheckpointInstruction } = await import('../utils/program');
@@ -1032,7 +1032,7 @@ async function autoMineRound(automationInfo: any): Promise<boolean> {
         // Send all checkpoints in ONE transaction
         logger.debug(`Sending ${checkpointInstructions.length} checkpoint(s)...`);
         const signature = await sendAndConfirmTransaction(checkpointInstructions, 'Checkpoint');
-        ui.success(`Caught up ${checkpointInstructions.length} round(s)`);
+        ui.success(`Checkpointed ${checkpointInstructions.length} round(s)`);
         logger.debug(`Transaction: ${signature}`);
 
         // Retry deployment after successful checkpoint
