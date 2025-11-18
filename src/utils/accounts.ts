@@ -76,6 +76,19 @@ export function getAutomationPDA(authority: PublicKey): [PublicKey, number] {
   );
 }
 
+// Check if automation account is initialized
+export async function isAutomationInitialized(authority: PublicKey): Promise<boolean> {
+  try {
+    const connection = getConnection();
+    const [automationPDA] = getAutomationPDA(authority);
+    const accountInfo = await connection.getAccountInfo(automationPDA);
+    return accountInfo !== null && accountInfo.data.length > 0;
+  } catch (error) {
+    logger.debug('Error checking automation account:', error);
+    return false;
+  }
+}
+
 // Fetch and deserialize Board account
 export async function fetchBoard(): Promise<Board> {
   const connection = getConnection();

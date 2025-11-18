@@ -77,6 +77,31 @@ export async function buildDeployInstruction(
   });
 }
 
+// Build Automate instruction (setup automated mining)
+export function buildAutomateInstruction(): TransactionInstruction {
+  const wallet = getWallet();
+  const [minerPDA] = getMinerPDA(wallet.publicKey);
+  const [automationPDA] = getAutomationPDA(wallet.publicKey);
+
+  // Automate instruction: 34 bytes of zeros (discriminator 0x00)
+  const data = Buffer.alloc(34);
+
+  // 5 accounts: wallet, automation PDA, system program, miner PDA, system program (duplicate)
+  const keys = [
+    { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
+    { pubkey: automationPDA, isSigner: false, isWritable: true },
+    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    { pubkey: minerPDA, isSigner: false, isWritable: true },
+    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+  ];
+
+  return new TransactionInstruction({
+    keys,
+    programId: config.orbProgramId,
+    data,
+  });
+}
+
 // Build Claim SOL instruction (based on reverse engineered transaction)
 export function buildClaimSolInstruction(): TransactionInstruction {
   const wallet = getWallet();
@@ -227,6 +252,7 @@ export async function sendAndConfirmTransaction(
 export default {
   getSquareMask,
   buildDeployInstruction,
+  buildAutomateInstruction,
   buildClaimSolInstruction,
   buildClaimOreInstruction,
   buildStakeInstruction,
