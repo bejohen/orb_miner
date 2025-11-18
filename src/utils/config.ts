@@ -77,6 +77,7 @@ export interface Config {
   requireConfirmation: boolean;
   minSolBalance: number;
   rateLimitMs: number;
+  incognitoMode: boolean;
 }
 
 function getEnv(key: string, defaultValue?: string): string {
@@ -180,6 +181,7 @@ export function loadConfig(): Config {
       requireConfirmation: getEnvBoolean('REQUIRE_CONFIRMATION', false),
       minSolBalance: getEnvNumber('MIN_SOL_BALANCE', 0.1),
       rateLimitMs: getEnvNumber('RATE_LIMIT_MS', 1000),
+      incognitoMode: getEnvBoolean('INCOGNITO_MODE', false),
     };
 
     logger.info('Configuration loaded successfully');

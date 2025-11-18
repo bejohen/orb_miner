@@ -1,5 +1,6 @@
 import winston from 'winston';
 import path from 'path';
+import { maskSensitiveData } from './mask';
 
 const { combine, timestamp, printf, colorize, errors } = winston.format;
 
@@ -11,11 +12,22 @@ const fileLogFormat = printf(({ level, message, timestamp, stack }) => {
   return `${timestamp} [${level}]: ${message}`;
 });
 
-// Console log format (clean, user-friendly)
+// Console log format (clean, user-friendly, with optional masking)
 const consoleLogFormat = printf(({ message }) => {
   // Strip technical details from console output
   // Keep only user-friendly messages
-  return String(message);
+  // Apply masking if incognito mode is enabled
+  const messageStr = String(message);
+
+  // Import config lazily to avoid circular dependency
+  // Config is checked at runtime (when logging), not at import time
+  try {
+    const { config } = require('./config');
+    return maskSensitiveData(messageStr, config?.incognitoMode || false);
+  } catch {
+    // If config not available yet, don't mask
+    return maskSensitiveData(messageStr, false);
+  }
 });
 
 // Create the logger
