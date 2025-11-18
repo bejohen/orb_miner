@@ -14,11 +14,18 @@ import { getMinerPDA, getStakePDA, getAutomationPDA } from './accounts';
 import logger from './logger';
 import { retry } from './retry';
 
-// Instruction discriminators (extracted from real ORB transactions)
+// Instruction discriminators (extracted from real ORB transactions and ORE source)
 const DEPLOY_DISCRIMINATOR = Buffer.from([0x00, 0x40, 0x42, 0x0f, 0x00, 0x00, 0x00, 0x00]);
+const AUTOMATE_DISCRIMINATOR = 0x00; // From ORE instruction enum
 // ORB uses simple 1-byte discriminators from ORE enum
 // ClaimSOL = 3, ClaimORE = 4 (defined inline in functions)
 const STAKE_DISCRIMINATOR = Buffer.from([0xce, 0xb0, 0xca, 0x12, 0xc8, 0xd1, 0xb3, 0x6c]);
+
+// Automation strategies
+export enum AutomationStrategy {
+  Random = 0,    // Deploys to random squares
+  Preferred = 1, // Deploys to specific squares based on mask
+}
 
 // Convert deployment strategy to 25-bit mask
 // NOTE: Based on reverse engineering, ORB requires squares mask to be 0, not a bitmask!
@@ -78,19 +85,66 @@ export async function buildDeployInstruction(
 }
 
 // Build Automate instruction (setup automated mining)
-export function buildAutomateInstruction(): TransactionInstruction {
+// Based on ORE source: https://github.com/regolith-labs/ore/blob/master/program/src/automate.rs
+export function buildAutomateInstruction(
+  amountPerSquare: number,  // SOL to deploy per square each round (in SOL, not lamports)
+  deposit: number,          // Initial funding for automation account (in SOL)
+  feePerExecution: number,  // Fee paid to executor per round (in SOL)
+  strategy: AutomationStrategy = AutomationStrategy.Random,
+  squareMask: bigint = 25n, // For Random: number of squares (25). For Preferred: bitmask of squares
+  executor?: PublicKey      // Executor address (defaults to wallet for self-execution)
+): TransactionInstruction {
   const wallet = getWallet();
   const [minerPDA] = getMinerPDA(wallet.publicKey);
   const [automationPDA] = getAutomationPDA(wallet.publicKey);
+  const executorKey = executor || wallet.publicKey; // Self-execute if no executor provided
 
-  // Automate instruction: 34 bytes of zeros (discriminator 0x00)
+  // Build instruction data (34 bytes total):
+  // - 1 byte: discriminator (0x00)
+  // - 8 bytes: amount per square (u64 LE, in lamports)
+  // - 8 bytes: deposit (u64 LE, in lamports)
+  // - 8 bytes: fee (u64 LE, in lamports)
+  // - 8 bytes: mask (u64 LE)
+  // - 1 byte: strategy (0 = Random, 1 = Preferred)
   const data = Buffer.alloc(34);
+  let offset = 0;
 
-  // 5 accounts: wallet, automation PDA, system program, miner PDA, system program (duplicate)
+  // Discriminator
+  data.writeUInt8(AUTOMATE_DISCRIMINATOR, offset);
+  offset += 1;
+
+  // Amount per square (convert SOL to lamports)
+  const amountLamports = BigInt(Math.floor(amountPerSquare * LAMPORTS_PER_SOL));
+  data.writeBigUInt64LE(amountLamports, offset);
+  offset += 8;
+
+  // Deposit (convert SOL to lamports)
+  const depositLamports = BigInt(Math.floor(deposit * LAMPORTS_PER_SOL));
+  data.writeBigUInt64LE(depositLamports, offset);
+  offset += 8;
+
+  // Fee (convert SOL to lamports)
+  const feeLamports = BigInt(Math.floor(feePerExecution * LAMPORTS_PER_SOL));
+  data.writeBigUInt64LE(feeLamports, offset);
+  offset += 8;
+
+  // Mask (for Random: quantity of squares; for Preferred: bitmask)
+  data.writeBigUInt64LE(squareMask, offset);
+  offset += 8;
+
+  // Strategy
+  data.writeUInt8(strategy, offset);
+
+  // Account keys (5 accounts):
+  // 0. signer - Wallet (signer, writable)
+  // 1. automation - Automation PDA (writable)
+  // 2. executor - Executor address (writable)
+  // 3. miner - Miner PDA (writable)
+  // 4. system_program - System program (read-only)
   const keys = [
     { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
     { pubkey: automationPDA, isSigner: false, isWritable: true },
-    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    { pubkey: executorKey, isSigner: false, isWritable: true },
     { pubkey: minerPDA, isSigner: false, isWritable: true },
     { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
   ];

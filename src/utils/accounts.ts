@@ -216,19 +216,27 @@ export async function fetchStake(authority: PublicKey): Promise<Stake | null> {
 
   const data = accountInfo.data;
 
-  // Parse Stake structure (estimated layout)
+  // Parse Stake structure (PARTIALLY KNOWN - needs more investigation)
+  // Based on actual account data analysis:
+  // - Discriminator: 8 bytes (0x6c00000000000000)
+  // - Authority: 32 bytes (wallet public key)
+  // - Balance: 8 bytes (staked ORB amount) - CONFIRMED
+  // - Unknown fields: remaining bytes need proper identification
   let offset = 8; // Skip discriminator
 
   const stake: Stake = {
     authority: new PublicKey(data.slice(offset, offset + 32)),
     balance: deserializeU64(data, offset + 32),
-    rewardsSol: deserializeU64(data, offset + 40),
-    rewardsOre: deserializeU64(data, offset + 48),
-    lifetimeRewardsSol: deserializeU64(data, offset + 56),
-    lifetimeRewardsOre: deserializeU64(data, offset + 64),
+    // TODO: The following fields are INCORRECT - they are not claimable rewards
+    // These appear to be reward factors or cumulative values that need calculation
+    // Setting to 0 until we properly reverse-engineer the structure
+    rewardsSol: new BN(0), // deserializeU64(data, offset + 40), // NOT claimable - unknown field
+    rewardsOre: new BN(0), // deserializeU64(data, offset + 48), // NOT claimable - unknown field
+    lifetimeRewardsSol: new BN(0), // deserializeU64(data, offset + 56),
+    lifetimeRewardsOre: deserializeU64(data, offset + 64), // This appears to be lifetime cumulative
   };
 
-  logger.debug(`Stake: balance=${stake.balance.toString()}, rewardsSol=${stake.rewardsSol.toString()}, rewardsOre=${stake.rewardsOre.toString()}`);
+  logger.debug(`Stake: balance=${stake.balance.toString()} (claimable rewards calculation needs implementation)`);
 
   return stake;
 }

@@ -4,7 +4,8 @@
       "Bash(dir:*)",
       "Bash(npm start)",
       "Bash(npm install)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npx ts-node:*)"
     ],
     "deny": [],
     "ask": []
