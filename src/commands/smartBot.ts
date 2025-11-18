@@ -408,8 +408,9 @@ async function autoSetupAutomation(): Promise<boolean> {
  * @param walletOrb - Current wallet ORB balance
  *
  * Uses the same calculation logic as the full PnL report for consistency.
- * Includes in-flight deployments (not yet reflected on-chain) to prevent PnL swings
- * from reward lag. On-chain rewards typically appear 1-2 rounds after deployment.
+ * Tracks in-flight deployments (spent but rewards not visible yet) and displays
+ * them separately for informational purposes. In-flight SOL is NOT added to current
+ * value since it has already been spent from the automation account.
  */
 async function displayQuickPnL(
   automationBalance: number,
@@ -420,14 +421,11 @@ async function displayQuickPnL(
   try {
     // Calculate total in-flight SOL (deployments not yet reflected on-chain)
     const inFlightSol = inFlightDeployments.reduce((sum, d) => sum + d.solAmount, 0);
-
-    // Add in-flight to claimable for more accurate PnL
-    // (these deployments are "working" but not yet shown in on-chain rewards)
-    const adjustedClaimableSol = claimableSol + inFlightSol;
+    const inFlightCount = inFlightDeployments.length;
 
     const pnl = await getQuickPnLSnapshot(
       automationBalance,
-      adjustedClaimableSol, // Use adjusted value
+      claimableSol, // Use raw value (don't add in-flight - it's already spent!)
       claimableOrb,
       walletOrb
     );
@@ -437,19 +435,18 @@ async function displayQuickPnL(
     const pnlColor = pnl.netSolPnl >= 0 ? '✅' : '❌';
 
     // Calculate total current value for verification
-    const totalCurrentValue = pnl.totalClaimedSol + pnl.totalSwappedSol + automationBalance + adjustedClaimableSol;
+    const totalCurrentValue = pnl.totalClaimedSol + pnl.totalSwappedSol + automationBalance + claimableSol;
 
     // Display compact PnL summary with full calculation breakdown
     logger.info('───────────────────────────────────────────────');
     logger.info(`💰 Net PnL: ${pnlColor} ${pnl.netSolPnl >= 0 ? '+' : ''}${pnl.netSolPnl.toFixed(4)} SOL (${roi >= 0 ? '+' : ''}${roi.toFixed(1)}% ROI)`);
     logger.info(`📊 Capital Deployed: ${pnl.totalDeployedSol.toFixed(4)} SOL (automation setup only)`);
     logger.info(`📈 Current Value: ${totalCurrentValue.toFixed(4)} SOL`);
+    logger.info(`   = ${pnl.totalClaimedSol.toFixed(4)} claimed + ${pnl.totalSwappedSol.toFixed(4)} swapped + ${automationBalance.toFixed(4)} automation + ${claimableSol.toFixed(4)} pending`);
 
-    // Show pending breakdown if we have in-flight deployments
-    if (inFlightSol > 0) {
-      logger.info(`   = ${pnl.totalClaimedSol.toFixed(4)} claimed + ${pnl.totalSwappedSol.toFixed(4)} swapped + ${automationBalance.toFixed(4)} automation + ${claimableSol.toFixed(4)} pending + ${inFlightSol.toFixed(4)} in-flight`);
-    } else {
-      logger.info(`   = ${pnl.totalClaimedSol.toFixed(4)} claimed + ${pnl.totalSwappedSol.toFixed(4)} swapped + ${automationBalance.toFixed(4)} automation + ${claimableSol.toFixed(4)} pending`);
+    // Show in-flight as informational (not included in current value since it's already spent)
+    if (inFlightCount > 0) {
+      logger.info(`⏳ In-Flight: ${inFlightSol.toFixed(4)} SOL (${inFlightCount} round${inFlightCount > 1 ? 's' : ''} waiting for rewards)`);
     }
 
     logger.info(`🪙 ORB Balance: ${pnl.netOrbBalance.toFixed(2)} ORB`);
