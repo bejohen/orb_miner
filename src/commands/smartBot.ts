@@ -48,6 +48,40 @@ import {
  * Fully autonomous, threshold-driven operation.
  */
 
+// Track recent deployments that haven't shown up in on-chain rewards yet
+// This prevents PnL swings from on-chain reward lag (rewards appear 1-2 rounds after deployment)
+interface InFlightDeployment {
+  roundId: number;
+  solAmount: number;
+  timestamp: number;
+}
+let inFlightDeployments: InFlightDeployment[] = [];
+
+/**
+ * Clean up old in-flight deployments
+ * Removes deployments older than 5 minutes (rewards should appear by then)
+ * Or deployments more than 3 rounds old
+ */
+function cleanupInFlightDeployments(currentRoundId?: number): void {
+  const now = Date.now();
+  const maxAge = 5 * 60 * 1000; // 5 minutes
+  const maxRoundDiff = 3; // Remove if 3+ rounds ago
+
+  const before = inFlightDeployments.length;
+  inFlightDeployments = inFlightDeployments.filter(d => {
+    const age = now - d.timestamp;
+    const roundDiff = currentRoundId ? currentRoundId - d.roundId : 0;
+
+    // Keep if less than 5 minutes old AND less than 3 rounds old
+    return age < maxAge && roundDiff < maxRoundDiff;
+  });
+
+  const removed = before - inFlightDeployments.length;
+  if (removed > 0) {
+    logger.debug(`Cleaned up ${removed} old in-flight deployment(s)`);
+  }
+}
+
 let isRunning = true;
 let signalHandlersRegistered = false;
 let lastRewardsCheck = 0;
@@ -373,7 +407,9 @@ async function autoSetupAutomation(): Promise<boolean> {
  * @param claimableOrb - Pending claimable ORB rewards
  * @param walletOrb - Current wallet ORB balance
  *
- * Uses the same calculation logic as the full PnL report for consistency
+ * Uses the same calculation logic as the full PnL report for consistency.
+ * Includes in-flight deployments (not yet reflected on-chain) to prevent PnL swings
+ * from reward lag. On-chain rewards typically appear 1-2 rounds after deployment.
  */
 async function displayQuickPnL(
   automationBalance: number,
@@ -382,9 +418,16 @@ async function displayQuickPnL(
   walletOrb: number
 ): Promise<void> {
   try {
+    // Calculate total in-flight SOL (deployments not yet reflected on-chain)
+    const inFlightSol = inFlightDeployments.reduce((sum, d) => sum + d.solAmount, 0);
+
+    // Add in-flight to claimable for more accurate PnL
+    // (these deployments are "working" but not yet shown in on-chain rewards)
+    const adjustedClaimableSol = claimableSol + inFlightSol;
+
     const pnl = await getQuickPnLSnapshot(
       automationBalance,
-      claimableSol,
+      adjustedClaimableSol, // Use adjusted value
       claimableOrb,
       walletOrb
     );
@@ -394,14 +437,21 @@ async function displayQuickPnL(
     const pnlColor = pnl.netSolPnl >= 0 ? '✅' : '❌';
 
     // Calculate total current value for verification
-    const totalCurrentValue = pnl.totalClaimedSol + pnl.totalSwappedSol + automationBalance + claimableSol;
+    const totalCurrentValue = pnl.totalClaimedSol + pnl.totalSwappedSol + automationBalance + adjustedClaimableSol;
 
     // Display compact PnL summary with full calculation breakdown
     logger.info('───────────────────────────────────────────────');
     logger.info(`💰 Net PnL: ${pnlColor} ${pnl.netSolPnl >= 0 ? '+' : ''}${pnl.netSolPnl.toFixed(4)} SOL (${roi >= 0 ? '+' : ''}${roi.toFixed(1)}% ROI)`);
     logger.info(`📊 Capital Deployed: ${pnl.totalDeployedSol.toFixed(4)} SOL (automation setup only)`);
     logger.info(`📈 Current Value: ${totalCurrentValue.toFixed(4)} SOL`);
-    logger.info(`   = ${pnl.totalClaimedSol.toFixed(4)} claimed + ${pnl.totalSwappedSol.toFixed(4)} swapped + ${automationBalance.toFixed(4)} automation + ${claimableSol.toFixed(4)} pending`);
+
+    // Show pending breakdown if we have in-flight deployments
+    if (inFlightSol > 0) {
+      logger.info(`   = ${pnl.totalClaimedSol.toFixed(4)} claimed + ${pnl.totalSwappedSol.toFixed(4)} swapped + ${automationBalance.toFixed(4)} automation + ${claimableSol.toFixed(4)} pending + ${inFlightSol.toFixed(4)} in-flight`);
+    } else {
+      logger.info(`   = ${pnl.totalClaimedSol.toFixed(4)} claimed + ${pnl.totalSwappedSol.toFixed(4)} swapped + ${automationBalance.toFixed(4)} automation + ${claimableSol.toFixed(4)} pending`);
+    }
+
     logger.info(`🪙 ORB Balance: ${pnl.netOrbBalance.toFixed(2)} ORB`);
     logger.info(`   = ${pnl.totalClaimedOrb.toFixed(2)} claimed - ${pnl.totalSwappedOrb.toFixed(2)} swapped + ${claimableOrb.toFixed(2)} pending + ${walletOrb.toFixed(2)} wallet`);
     logger.info('───────────────────────────────────────────────');
@@ -519,6 +569,9 @@ async function autoClaimRewards(): Promise<void> {
       } catch (error) {
         logger.error('Failed to record claim:', error);
       }
+
+      // Cleanup in-flight deployments since on-chain state just updated
+      cleanupInFlightDeployments();
     }
 
     // Check staking rewards (separate transaction to avoid failing mining claims)
@@ -994,6 +1047,14 @@ async function autoMineRound(automationInfo: any): Promise<boolean> {
         automationInfo.balance / 1e9,
         (automationInfo.balance - automationInfo.costPerRound) / 1e9
       );
+
+      // Track deployment as in-flight (will show up in rewards 1-2 rounds later)
+      inFlightDeployments.push({
+        roundId: board.roundId.toNumber(),
+        solAmount: solPerRound,
+        timestamp: Date.now(),
+      });
+      logger.debug(`Added in-flight deployment: ${solPerRound.toFixed(4)} SOL for round ${board.roundId.toNumber()}`);
     } catch (error) {
       logger.error('Failed to record deployment:', error);
     }
@@ -1236,6 +1297,10 @@ export async function smartBotCommand(): Promise<void> {
                 ui.warning('Budget depleted - will close automation after cleanup');
               }
             }
+
+            // Cleanup old in-flight deployments before displaying PnL
+            const board = await fetchBoard();
+            cleanupInFlightDeployments(board.roundId.toNumber());
 
             // Display quick PnL preview after each round with current balances
             const currentAutomationBalance = updatedInfo ? updatedInfo.balance / 1e9 : 0;
