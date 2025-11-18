@@ -118,51 +118,63 @@ function setupSignalHandlers() {
 /**
  * Calculate optimal rounds based on motherload (dynamic EV optimization)
  * Strategy: As motherload grows, deploy MORE per round (fewer total rounds, higher amount per square)
- * This maximizes EV when rewards are high.
+ * This maximizes EV when rewards are high while preserving capital at lower motherloads.
  *
- * Tiers:
+ * Tiers (CONSERVATIVE - focus on capital preservation):
  * - 0-199 ORB: Don't mine (below minimum threshold)
- * - 200-299 ORB: Very conservative (120 rounds, small amounts)
- * - 300-399 ORB: Conservative (100 rounds)
- * - 400-499 ORB: Moderate (80 rounds)
- * - 500-599 ORB: Aggressive (60 rounds)
- * - 600-699 ORB: Very aggressive (45 rounds)
- * - 700-999 ORB: Maximum aggression (30 rounds)
- * - 1000+ ORB: Ultra aggressive (20 rounds, very large amounts)
+ * - 200-299 ORB: Ultra conservative (180 rounds, very small amounts)
+ * - 300-399 ORB: Very conservative (160 rounds)
+ * - 400-499 ORB: Conservative (140 rounds)
+ * - 500-599 ORB: Moderate-Conservative (120 rounds)
+ * - 600-699 ORB: Moderate (100 rounds)
+ * - 700-899 ORB: Moderate-Aggressive (80 rounds)
+ * - 900-999 ORB: Aggressive (60 rounds)
+ * - 1000-1499 ORB: Very aggressive (40 rounds)
+ * - 1500+ ORB: Ultra aggressive (25 rounds, very large amounts)
  */
 function calculateTargetRounds(motherloadOrb: number): number {
-  // Ultra aggressive for massive motherloads (1000+ ORB)
+  // Ultra aggressive for massive motherloads (1500+ ORB)
+  if (motherloadOrb >= 1500) {
+    return 25; // 4% of budget per round - huge bets on huge rewards
+  }
+
+  // Very aggressive (1000-1499 ORB)
   if (motherloadOrb >= 1000) {
-    return 20; // 5% of budget per round - huge bets on huge rewards
+    return 40; // 2.5% of budget per round
   }
 
-  // Maximum aggression (700-999 ORB)
-  if (motherloadOrb >= 700) {
-    return 30; // ~3.3% of budget per round
-  }
-
-  // Very aggressive (600-699 ORB)
-  if (motherloadOrb >= 600) {
-    return 45; // ~2.2% of budget per round
-  }
-
-  // Aggressive (500-599 ORB)
-  if (motherloadOrb >= 500) {
+  // Aggressive (900-999 ORB)
+  if (motherloadOrb >= 900) {
     return 60; // ~1.67% of budget per round
   }
 
-  // Moderate (400-499 ORB)
-  if (motherloadOrb >= 400) {
+  // Moderate-Aggressive (700-899 ORB)
+  if (motherloadOrb >= 700) {
     return 80; // ~1.25% of budget per round
   }
 
-  // Conservative (300-399 ORB)
-  if (motherloadOrb >= 300) {
+  // Moderate (600-699 ORB)
+  if (motherloadOrb >= 600) {
     return 100; // 1% of budget per round
   }
 
-  // Very conservative (200-299 ORB)
-  return 120; // ~0.83% of budget per round - small bets on small rewards
+  // Moderate-Conservative (500-599 ORB)
+  if (motherloadOrb >= 500) {
+    return 120; // ~0.83% of budget per round
+  }
+
+  // Conservative (400-499 ORB)
+  if (motherloadOrb >= 400) {
+    return 140; // ~0.71% of budget per round
+  }
+
+  // Very conservative (300-399 ORB)
+  if (motherloadOrb >= 300) {
+    return 160; // ~0.63% of budget per round
+  }
+
+  // Ultra conservative (200-299 ORB)
+  return 180; // ~0.56% of budget per round - small bets on small rewards
 }
 
 /**
