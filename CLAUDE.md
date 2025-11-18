@@ -117,6 +117,25 @@ Jupiter API v6 is used for:
 
 The bot can auto-swap ORB to SOL when balance is low. See [jupiter.ts](src/utils/jupiter.ts) and [swap.ts](src/commands/swap.ts).
 
+### Automation Account System
+The bot uses a dedicated PDA (Program-Derived Address) for autonomous operation:
+
+**Key Points:**
+- **PDA Derivation**: Derived from seeds `["automation", authority]` + ORB program ID
+- **Structure**: 112-byte account storing strategy parameters and execution state
+  - Offset 8-16: `amountPerSquare` (u64) - SOL to deploy per square
+  - Offset 16-17: `squareCount` (u8) - Number of squares to deploy to (25)
+  - Offset 17-49: `authority` (Pubkey) - Wallet that owns this automation
+  - Additional fields for timing, checkpoint tracking, and round management
+
+**Lifecycle:**
+1. **First Run**: Bot creates automation account via `buildAutomateInstruction()`
+2. **Each Round**: Bot executes deployment via `buildExecuteAutomationInstruction()`
+3. **Refunding**: When balance low, bot swaps ORB→SOL and transfers to automation PDA
+4. **Closing**: Can manually close via `tests/test-close-automation.ts` to reclaim rent
+
+**Important**: The automation PDA holds the SOL balance used for mining. Your main wallet holds ORB for swapping/staking.
+
 ## Smart Bot Logic
 
 The [smartBot.ts](src/commands/smartBot.ts) command implements the fully autonomous bot:
@@ -201,20 +220,124 @@ Winston logger writes to:
 - `logs/error.log` (errors only)
 - `logs/transactions.log` (transaction signatures)
 
+## Monitoring the Bot
+
+### Real-Time Monitoring
+Watch logs in real-time:
+```bash
+# All logs
+tail -f logs/combined.log
+
+# Errors only
+tail -f logs/error.log
+
+# Transaction signatures only
+tail -f logs/transactions.log
+```
+
+### Key Metrics to Monitor
+- **Automation Balance**: Should stay above `MIN_AUTOMATION_BALANCE`
+- **Motherload**: Check if consistently above/below threshold
+- **Claim Success**: Verify rewards are being claimed
+- **Swap Success**: Ensure ORB→SOL swaps complete when triggered
+
+### Checking Status Manually
+```bash
+# Quick status check (run in separate terminal while bot runs)
+npx ts-node tests/test-query.ts
+```
+
+## Testing & Debugging
+
+### Test Scripts
+Run individual test scripts for debugging specific functionality:
+
+```bash
+# Query balances and round info
+npx ts-node tests/test-query.ts
+
+# Test deployment
+npx ts-node tests/test-deploy.ts
+
+# Test claiming rewards
+npx ts-node tests/test-claim.ts
+
+# Test swapping
+npx ts-node tests/test-swap.ts
+
+# Check automation account status
+npx ts-node tests/check-automation-account.ts
+
+# Debug miner account
+npx ts-node tests/debug-miner-account.ts
+
+# Analyze specific transactions
+npx ts-node tests/analyze-transaction.ts
+```
+
+### Automation Account Debugging
+```bash
+# Check if automation account exists and its balance
+npx ts-node tests/check-automation-account.ts
+
+# Reset automation account (warning: loses remaining balance)
+npx ts-node tests/reset-automation.ts
+
+# Test automation setup
+npx ts-node tests/test-setup-smart-automation.ts
+```
+
 ## Testing Changes
 
-When modifying the bot:
-1. Set `DRY_RUN=true` in .env to test without sending real transactions
-2. Set low thresholds for testing:
-   - `MOTHERLOAD_THRESHOLD=10` (mine even with low motherload)
-   - `INITIAL_AUTOMATION_BUDGET_PCT=10` (use small budget for testing)
-   - `AUTO_CLAIM_SOL_THRESHOLD=0.001` (claim quickly)
-3. Monitor `logs/error.log` for issues
-4. Check `logs/transactions.log` for all transaction signatures
-5. Use legacy commands for manual testing:
-   - `npx ts-node src/commands/query.ts` (check balances)
-   - `npx ts-node src/commands/claim.ts` (manual claim)
-   - `npx ts-node src/commands/swap.ts` (manual swap)
+### Before Modifying Code
+1. Run full query to capture current state:
+   ```bash
+   npx ts-node tests/test-query.ts > pre-change-state.txt
+   ```
+
+### Testing Workflow
+1. **Set DRY_RUN Mode**:
+   ```env
+   DRY_RUN=true
+   ```
+
+2. **Use Low Thresholds** (in .env):
+   ```env
+   MOTHERLOAD_THRESHOLD=10
+   INITIAL_AUTOMATION_BUDGET_PCT=10
+   AUTO_CLAIM_SOL_THRESHOLD=0.001
+   MIN_AUTOMATION_BALANCE=0.1
+   CHECK_ROUND_INTERVAL_MS=5000
+   ```
+
+3. **Test Individual Components**:
+   - Config changes: `npx ts-node tests/test-query.ts`
+   - Deployment logic: `npx ts-node tests/test-deploy.ts`
+   - Claim logic: `npx ts-node tests/test-claim.ts`
+   - Swap logic: `npx ts-node tests/test-swap.ts`
+
+4. **Test Automation Setup**:
+   ```bash
+   # Close existing automation (if any)
+   npx ts-node tests/test-close-automation.ts
+
+   # Test setup with small budget
+   npm run dev
+   # Should create automation account and deploy once, then Ctrl+C
+   ```
+
+5. **Monitor Logs During Testing**:
+   ```bash
+   tail -f logs/combined.log | grep -i "error\|warning\|success"
+   ```
+
+6. **Verify Transaction on Explorer**: Check `logs/transactions.log` for signatures
+
+### After Testing
+1. Set `DRY_RUN=false`
+2. Restore production thresholds
+3. Test with minimal real funds first
+4. Monitor for one full round before leaving unattended
 
 ## Common Tasks
 
@@ -246,12 +369,49 @@ If on-chain account layouts change:
 3. Add to loadConfig function in [config.ts:92-165](src/utils/config.ts#L92-L165) with getEnv/getEnvNumber/getEnvBoolean
 4. Use via `config.yourNewOption` in [smartBot.ts](src/commands/smartBot.ts)
 
+### Troubleshoot automation account issues
+If automation account has issues:
+1. Check account exists: `npx ts-node tests/check-automation-account.ts`
+2. Verify balance: Should show `amountPerSquare` and remaining balance
+3. Check PDA derivation in [accounts.ts:20-25](src/utils/accounts.ts#L20-L25)
+4. Review instruction building in [program.ts:47-87](src/utils/program.ts#L47-L87)
+5. If corrupted, reset with `npx ts-node tests/reset-automation.ts` (WARNING: loses balance)
+
+### Debug transaction failures
+1. Copy transaction signature from `logs/transactions.log`
+2. View on Solana Explorer: `https://solscan.io/tx/{signature}`
+3. Run analyzer: Edit `tests/analyze-transaction.ts` with signature, then run
+4. Check error logs: `tail -50 logs/error.log`
+
 ## Project Context
 
 - **ORB Program**: `boreXQWsKpsJz5RR9BMtN8Vk4ndAk23sutj8spWYhwk`
 - **ORB Token Mint**: `orebyr4mDiPDVgnfqvF5xiu5gKnh94Szuz8dqgNqdJn`
 - **Network**: Solana mainnet-beta
 - **Based on**: ORE protocol (https://github.com/regolith-labs/ore)
+
+## Important Notes
+
+### Security
+- Never commit `.env` file with real private keys
+- Use dedicated wallet for bot operations
+- Test with small amounts first
+- Keep backup of private key offline
+
+### Performance
+- Faster RPC endpoints reduce missed rounds (consider Helius, QuickNode)
+- `CHECK_ROUND_INTERVAL_MS` trades off between responsiveness and RPC calls
+- Lower intervals (~5000ms) = more responsive but more RPC usage
+
+### Cost Optimization
+- Higher `MOTHERLOAD_THRESHOLD` = fewer rounds mined, lower costs, better EV
+- `INITIAL_AUTOMATION_BUDGET_PCT` determines how long bot runs before needing refund
+- Auto-swap keeps bot running but incurs swap fees (Jupiter ~0.5%)
+
+### Limitations
+- No public IDL means program changes require reverse-engineering
+- Automation account can't be refunded automatically yet (requires manual transfer or swap)
+- Round timing is unpredictable (depends on network activity)
 
 ## How It Works
 
