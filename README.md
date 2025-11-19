@@ -29,11 +29,11 @@ Monte Carlo Analysis • Kelly Criterion • Real-Time EV • Dynamic Scaling
 <td width="60%">
 
 ORB is a **lottery-style mining game** on Solana where:
-- 🎲 Each round has a 5x5 grid (25 squares)
-- 💰 Miners deploy SOL to squares to participate
-- 🎯 One random square wins the round
-- 🏆 Winners get SOL from losing miners + ORB tokens from motherload
-- 🤖 **This bot deploys to all 25 squares** to maximize chances
+- 🎲 Each round has a 5x5 grid (25 blocks/squares)
+- 💰 Miners deploy SOL to blocks to claim space proportionally
+- 🎯 One random **winning block** is chosen - ALL miners on that block win
+- 🏆 Winners **share** rewards proportionally: SOL from losers + 4 ORB + motherload (1/625 chance)
+- 🤖 **This bot deploys to all 25 blocks** to maximize win probability
 
 [Learn more →](https://ore.blue/)
 
@@ -41,17 +41,20 @@ ORB is a **lottery-style mining game** on Solana where:
 <td width="40%">
 
 ```
-┌─────────────────┐
-│  5x5 Grid       │
-│  25 Squares     │
-│  1/625 chance   │
-│                 │
-│  🎯🎯🎯🎯🎯      │
-│  🎯🎯🏆🎯🎯      │
-│  🎯🎯🎯🎯🎯      │
-│  🎯🎯🎯🎯🎯      │
-│  🎯🎯🎯🎯🎯      │
-└─────────────────┘
+┌─────────────────────┐
+│  5x5 Grid (25 Blocks)│
+│  Deploy to blocks    │
+│  1 block wins/round  │
+│                      │
+│  🎯 🎯 🎯 🎯 🎯      │
+│  🎯 🎯 🏆 🎯 🎯      │
+│  🎯 🎯 WIN 🎯 🎯     │
+│  🎯 🎯 🎯 🎯 🎯      │
+│  🎯 🎯 🎯 🎯 🎯      │
+│                      │
+│ All miners on 🏆     │
+│ share rewards!       │
+└─────────────────────┘
 ```
 
 </td>
