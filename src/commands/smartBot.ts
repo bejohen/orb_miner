@@ -1350,25 +1350,21 @@ export async function smartBotCommand(): Promise<void> {
       const claimableOrb = miner ? Number(miner.rewardsOre) / 1e9 : 0;
       const stakedOrb = stake ? Number(stake.balance) / 1e9 : 0;
 
-      // Get ORB price
-      const orbPrice = await getOrbPrice().catch(() => ({ priceInSol: 0, priceInUsd: 0 }));
-
-      // Calculate total starting value (all SOL + bot ORB value, excludes staked ORB)
+      // Calculate total starting value (ONLY SOL - ORB only counts as profit when sold)
       const totalSol = walletBalances.sol + automationSol + claimableSol;
       const botOrb = walletBalances.orb + claimableOrb; // Bot ORB only (no staked)
-      const botOrbValueSol = botOrb * orbPrice.priceInSol;
-      const totalStartingValue = totalSol + botOrbValueSol;
+      const totalStartingValue = totalSol; // Only SOL, ORB is profit when sold
 
       await setBaselineBalance(totalStartingValue);
-      ui.success(`Baseline set: ${totalStartingValue.toFixed(4)} SOL`);
+      ui.success(`Baseline set: ${totalStartingValue.toFixed(4)} SOL (realized value only)`);
       ui.info(`  - SOL: ${totalSol.toFixed(4)} (wallet: ${walletBalances.sol.toFixed(4)}, automation: ${automationSol.toFixed(4)}, claimable: ${claimableSol.toFixed(4)})`);
       if (botOrb > 0) {
-        ui.info(`  - Bot ORB: ${botOrb.toFixed(2)} = ${botOrbValueSol.toFixed(4)} SOL @ $${orbPrice.priceInUsd.toFixed(2)}/ORB`);
+        ui.info(`  - Bot ORB: ${botOrb.toFixed(2)} (unrealized, becomes profit when swapped)`);
       }
       if (stakedOrb > 0) {
         ui.info(`  - Staked ORB: ${stakedOrb.toFixed(2)} (excluded from PnL)`);
       }
-      ui.info('This will be used to calculate your profit/loss');
+      ui.info('PnL tracks SOL only - ORB becomes profit when you swap it to SOL');
       ui.blank();
     } else {
       ui.section('BASELINE');
