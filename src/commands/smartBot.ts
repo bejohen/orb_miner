@@ -1302,10 +1302,11 @@ export async function smartBotCommand(): Promise<void> {
 
       // Warn if automation exists but not recorded in database
       if (automationInfo && automationInfo.balance > 0 && pnl.totalDeployedSol === 0) {
-        ui.warning('⚠️  PnL Tracking Warning:');
+        ui.warning('ℹ️  PnL Tracking Notice:');
         ui.warning(`   Automation account has ${automationInfo.balance.toFixed(4)} SOL but no setup recorded in database`);
         ui.warning('   This usually means the database was reset or corrupted.');
-        ui.warning('   Run: npx ts-node scripts/reconcile-pnl.ts to investigate');
+        ui.warning('   PnL will treat automation balance as previously deployed capital (not profit).');
+        ui.warning('   Run: npx ts-node scripts/reconcile-pnl.ts to investigate history');
         ui.blank();
       }
 

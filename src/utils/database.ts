@@ -503,6 +503,13 @@ export async function getQuickPnLSnapshot(
 ): Promise<QuickPnLSnapshot> {
   const summary = await getPnLSummary();
 
+  // If no setup was recorded but automation account exists with balance,
+  // treat that balance as previously deployed capital (e.g., after database reset)
+  let adjustedTotalDeployedSol = summary.totalDeployedSol;
+  if (summary.totalDeployedSol === 0 && currentAutomationBalance > 0) {
+    adjustedTotalDeployedSol = currentAutomationBalance;
+  }
+
   // Calculate net SOL including:
   // - Claimed SOL
   // - Swapped SOL (from selling ORB)
@@ -510,14 +517,14 @@ export async function getQuickPnLSnapshot(
   // - Pending claimable SOL
   // - Minus total deployed
   const totalReceived = summary.totalClaimedSol + summary.totalSwappedSol + currentAutomationBalance + currentClaimableSol;
-  const netSolPnl = totalReceived - summary.totalDeployedSol;
+  const netSolPnl = totalReceived - adjustedTotalDeployedSol;
 
   // Calculate net ORB balance as current holdings
   // (Swapped ORB is shown separately since it was converted to SOL and already counted in SOL PnL)
   const netOrbBalance = currentClaimableOrb + currentWalletOrb + currentStakedOrb;
 
   return {
-    totalDeployedSol: summary.totalDeployedSol,
+    totalDeployedSol: adjustedTotalDeployedSol,
     totalClaimedSol: summary.totalClaimedSol,
     totalClaimedOrb: summary.totalClaimedOrb,
     totalSwappedSol: summary.totalSwappedSol,
