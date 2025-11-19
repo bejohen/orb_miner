@@ -14,6 +14,8 @@ import {
   Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, ReferenceLine, Tooltip } from 'recharts';
+import { format } from 'date-fns';
 
 async function fetchStatus() {
   const res = await fetch('/api/status');
@@ -24,6 +26,12 @@ async function fetchStatus() {
 async function fetchPnL() {
   const res = await fetch('/api/pnl');
   if (!res.ok) throw new Error('Failed to fetch PnL');
+  return res.json();
+}
+
+async function fetchAnalytics() {
+  const res = await fetch('/api/analytics');
+  if (!res.ok) throw new Error('Failed to fetch analytics');
   return res.json();
 }
 
@@ -40,7 +48,13 @@ export default function Home() {
     refetchInterval: 30000,
   });
 
-  if (statusLoading || pnlLoading) {
+  const { data: analytics, isLoading: analyticsLoading } = useQuery({
+    queryKey: ['analytics'],
+    queryFn: fetchAnalytics,
+    refetchInterval: 60000,
+  });
+
+  if (statusLoading || pnlLoading || analyticsLoading) {
     return (
       <DashboardLayout>
         <div className="flex h-full items-center justify-center">
@@ -53,6 +67,14 @@ export default function Home() {
   const netPnL = pnl?.summary?.netProfit || 0;
   const roi = pnl?.summary?.roi || 0;
   const isProfit = netPnL >= 0;
+
+  // Prepare chart data
+  const baseline = pnl?.truePnL?.startingBalance || 0;
+  const chartData = (analytics?.balanceHistory || []).map((item: any) => ({
+    time: format(new Date(item.timestamp), 'MMM dd HH:mm'),
+    sol: item.totalSol || 0,
+    isProfit: (item.totalSol || 0) >= baseline,
+  }));
 
   return (
     <DashboardLayout>
@@ -100,6 +122,58 @@ export default function Home() {
                     <p className="text-[10px] text-muted-foreground mt-0.5">(all costs)</p>
                   </div>
                 </div>
+
+                {/* SOL Balance Chart */}
+                {chartData.length > 0 && (
+                  <div className="pt-4 border-t border-border/50">
+                    <p className="text-xs text-muted-foreground mb-3">SOL Balance Over Time</p>
+                    <ResponsiveContainer width="100%" height={120}>
+                      <LineChart data={chartData}>
+                        <XAxis
+                          dataKey="time"
+                          stroke="#666"
+                          tick={{ fontSize: 10 }}
+                          tickLine={false}
+                          axisLine={false}
+                          interval="preserveStartEnd"
+                        />
+                        <YAxis
+                          stroke="#666"
+                          tick={{ fontSize: 10 }}
+                          tickLine={false}
+                          axisLine={false}
+                          domain={['auto', 'auto']}
+                        />
+                        {baseline > 0 && (
+                          <ReferenceLine
+                            y={baseline}
+                            stroke="#888"
+                            strokeDasharray="3 3"
+                            strokeWidth={1}
+                          />
+                        )}
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: '#1a1a1a',
+                            border: '1px solid #333',
+                            borderRadius: '6px',
+                            fontSize: 12
+                          }}
+                          labelStyle={{ color: '#fff', marginBottom: 4 }}
+                          formatter={(value: any) => [`${Number(value).toFixed(4)} SOL`, 'Balance']}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="sol"
+                          stroke={isProfit ? '#22c55e' : '#ef4444'}
+                          strokeWidth={2}
+                          dot={false}
+                          animationDuration={500}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
               </div>
 
               {/* Icon */}
