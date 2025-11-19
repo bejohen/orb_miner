@@ -5,6 +5,7 @@ export interface RetryOptions {
   initialDelayMs: number;
   maxDelayMs: number;
   exponentialBase: number;
+  shouldRetry?: (error: Error) => boolean; // Optional function to check if error should be retried
 }
 
 const defaultOptions: RetryOptions = {
@@ -36,6 +37,15 @@ export async function retry<T>(
       return await fn();
     } catch (error) {
       lastError = error as Error;
+
+      // Check if we should retry this error (if shouldRetry function provided)
+      const shouldRetryError = opts.shouldRetry ? opts.shouldRetry(lastError) : true;
+
+      if (!shouldRetryError) {
+        logger.debug(`${context}: Error is not retryable, failing immediately`);
+        throw lastError;
+      }
+
       if (attempt === opts.maxRetries) {
         logger.error(`${context}: Failed after ${opts.maxRetries} retries:`, lastError);
         throw lastError;

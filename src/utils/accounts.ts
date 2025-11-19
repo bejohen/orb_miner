@@ -228,7 +228,7 @@ export async function fetchMiner(authority: PublicKey): Promise<Miner | null> {
     lifetimeRewardsOre: deserializeU64(data, offset + 520),    // offset 528 (absolute)
   };
 
-  logger.debug(`Miner: roundId=${miner.roundId.toString()}, rewardsSol=${miner.rewardsSol.toString()}, rewardsOre=${miner.rewardsOre.toString()}`);
+  logger.debug(`Miner: roundId=${miner.roundId.toString()}, checkpointId=${miner.checkpointId.toString()}, rewardsSol=${miner.rewardsSol.toString()}, rewardsOre=${miner.rewardsOre.toString()}`);
 
   return miner;
 }

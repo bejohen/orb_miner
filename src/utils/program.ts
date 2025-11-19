@@ -523,7 +523,23 @@ export async function sendAndConfirmTransaction(
       logger.debug(`${context}: Transaction confirmed: ${signature}`);
       return signature;
     },
-    { maxRetries: config.deployMaxRetries },
+    {
+      maxRetries: config.deployMaxRetries,
+      // Don't retry "AlreadyProcessed" errors for checkpoint operations
+      shouldRetry: (error: Error) => {
+        const errorMsg = String(error.message || error);
+        const isAlreadyProcessed = errorMsg.includes('AlreadyProcessed');
+        const isCheckpoint = context.includes('Checkpoint');
+
+        // If it's a checkpoint operation with AlreadyProcessed error, don't retry
+        if (isCheckpoint && isAlreadyProcessed) {
+          return false;
+        }
+
+        // Retry all other errors
+        return true;
+      },
+    },
     context
   );
 }
