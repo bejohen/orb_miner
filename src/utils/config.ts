@@ -73,6 +73,11 @@ export interface Config {
   swapPriorityFeeLamports: number | 'auto';
   jupiterApiUrl: string;
 
+  // Priority Fee Settings (Dynamic Fee Optimization)
+  priorityFeeLevel: string; // 'low' | 'medium' | 'high' | 'veryHigh'
+  minPriorityFeeMicroLamports: number;
+  maxPriorityFeeMicroLamports: number;
+
   // Safety Settings
   dryRun: boolean;
   requireConfirmation: boolean;
@@ -177,6 +182,11 @@ export function loadConfig(): Config {
       slippageBps: getEnvNumber('SLIPPAGE_BPS', 50),
       swapPriorityFeeLamports: getEnvPriorityFee('SWAP_PRIORITY_FEE_LAMPORTS', 100000),
       jupiterApiUrl: getEnv('JUPITER_API_URL', 'https://quote-api.jup.ag/v6'),
+
+      // Priority Fee Settings (Dynamic Fee Optimization)
+      priorityFeeLevel: getEnv('PRIORITY_FEE_LEVEL', 'medium'),
+      minPriorityFeeMicroLamports: getEnvNumber('MIN_PRIORITY_FEE_MICRO_LAMPORTS', 100),
+      maxPriorityFeeMicroLamports: getEnvNumber('MAX_PRIORITY_FEE_MICRO_LAMPORTS', 50000),
 
       // Safety Settings
       dryRun: getEnvBoolean('DRY_RUN', false),

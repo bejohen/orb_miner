@@ -1,11 +1,12 @@
 import axios from 'axios';
-import { VersionedTransaction } from '@solana/web3.js';
+import { VersionedTransaction, PublicKey } from '@solana/web3.js';
 import { config } from './config';
 import { getConnection } from './solana';
 import { getWallet } from './wallet';
 import logger from './logger';
 import { JupiterQuote, JupiterSwapResponse } from '../types';
 import { retry } from './retry';
+import { estimatePriorityFee, parseFeeLevel, COMPUTE_UNIT_LIMITS } from './feeEstimation';
 
 const WSOL_MINT = 'So11111111111111111111111111111111111111112'; // Wrapped SOL
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'; // USDC
@@ -238,8 +239,45 @@ export async function executeSwap(quote: JupiterQuote): Promise<string | null> {
 
     // Get swap transaction from Jupiter
     logger.info(`Requesting swap transaction from ${swapEndpoint}...`);
-    const priorityFee = config.swapPriorityFeeLamports;
-    logger.debug(`Using priority fee: ${priorityFee === 'auto' ? 'auto' : `${priorityFee} lamports (~${(priorityFee as number / 1e9).toFixed(6)} SOL)`}`);
+
+    // Determine priority fee (use dynamic estimation or config value)
+    let priorityFeeLamports: number | 'auto';
+
+    if (config.swapPriorityFeeLamports === 'auto') {
+      // Use 'auto' to let Jupiter handle it
+      priorityFeeLamports = 'auto';
+      logger.debug('Using Jupiter auto priority fee');
+    } else if (config.swapPriorityFeeLamports > 0) {
+      // Use static config value
+      priorityFeeLamports = config.swapPriorityFeeLamports;
+      logger.debug(`Using static swap priority fee: ${priorityFeeLamports} lamports (~${(priorityFeeLamports / 1e9).toFixed(6)} SOL)`);
+    } else {
+      // Use dynamic fee estimation from our utility
+      try {
+        const feeLevel = parseFeeLevel(config.priorityFeeLevel);
+
+        // Estimate fee for swap (use ORB and SOL token accounts)
+        const accounts = [
+          config.orbTokenMint,
+          new PublicKey(WSOL_MINT),
+          wallet.publicKey,
+        ];
+
+        const feeEstimate = await estimatePriorityFee(
+          connection,
+          accounts,
+          feeLevel,
+          COMPUTE_UNIT_LIMITS.SWAP
+        );
+
+        // Convert from micro-lamports to total lamports
+        priorityFeeLamports = feeEstimate.totalFeeLamports;
+        logger.debug(`Using dynamic swap fee estimate: ${priorityFeeLamports} lamports (~${(priorityFeeLamports / 1e9).toFixed(6)} SOL)`);
+      } catch (error) {
+        logger.warn('Fee estimation failed for swap, using fallback', error);
+        priorityFeeLamports = 100000; // Fallback: 0.0001 SOL
+      }
+    }
 
     const swapResponse = await axios.post<JupiterSwapResponse>(
       `${swapEndpoint}/swap`,
@@ -248,7 +286,7 @@ export async function executeSwap(quote: JupiterQuote): Promise<string | null> {
         userPublicKey: wallet.publicKey.toString(),
         wrapAndUnwrapSol: true,
         dynamicComputeUnitLimit: true,
-        prioritizationFeeLamports: priorityFee,
+        prioritizationFeeLamports: priorityFeeLamports,
       },
       {
         timeout: 30000,

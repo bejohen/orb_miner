@@ -13,6 +13,7 @@ import { getConnection } from './solana';
 import { getMinerPDA, getStakePDA, getAutomationPDA, getBoardPDA, getRoundPDA } from './accounts';
 import logger from './logger';
 import { retry } from './retry';
+import { buildComputeBudgetInstructions, COMPUTE_UNIT_LIMITS, parseFeeLevel } from './feeEstimation';
 
 // Instruction discriminators (extracted from real ORB transactions)
 const DEPLOY_DISCRIMINATOR = Buffer.from([0x00, 0x40, 0x42, 0x0f, 0x00, 0x00, 0x00, 0x00]); // 8-byte deploy discriminator
@@ -482,18 +483,54 @@ export function buildStakeInstruction(amount: number): TransactionInstruction {
   });
 }
 
-// Send and confirm transaction with retries
+// Send and confirm transaction with retries and dynamic fee estimation
 export async function sendAndConfirmTransaction(
   instructions: TransactionInstruction[],
-  context: string
+  context: string,
+  options?: {
+    computeUnitLimit?: number;    // Optional override for compute unit limit
+    accounts?: PublicKey[];       // Accounts involved (for better fee estimation)
+  }
 ): Promise<string> {
   const connection = getConnection();
   const wallet = getWallet();
 
   return await retry(
     async () => {
-      // Create transaction
+      // Determine compute unit limit based on context
+      let computeUnitLimit = options?.computeUnitLimit;
+      if (!computeUnitLimit) {
+        // Auto-detect from context
+        if (context.includes('Deploy') || context.includes('Automation')) {
+          computeUnitLimit = COMPUTE_UNIT_LIMITS.DEPLOY;
+        } else if (context.includes('Claim SOL')) {
+          computeUnitLimit = COMPUTE_UNIT_LIMITS.CLAIM_SOL;
+        } else if (context.includes('Claim ORB') || context.includes('Claim ORE')) {
+          computeUnitLimit = COMPUTE_UNIT_LIMITS.CLAIM_ORB;
+        } else if (context.includes('Stake')) {
+          computeUnitLimit = COMPUTE_UNIT_LIMITS.STAKE;
+        } else if (context.includes('Checkpoint')) {
+          computeUnitLimit = COMPUTE_UNIT_LIMITS.CHECKPOINT;
+        } else {
+          computeUnitLimit = 200000; // Default fallback
+        }
+      }
+
+      // Extract accounts from instructions if not provided
+      const accounts = options?.accounts || extractAccountsFromInstructions(instructions);
+
+      // Build compute budget instructions with dynamic fee estimation
+      const feeLevel = parseFeeLevel(config.priorityFeeLevel);
+      const computeBudgetIxs = await buildComputeBudgetInstructions(
+        connection,
+        accounts,
+        feeLevel,
+        computeUnitLimit
+      );
+
+      // Create transaction with compute budget instructions first
       const transaction = new Transaction();
+      computeBudgetIxs.forEach(ix => transaction.add(ix));
       instructions.forEach(ix => transaction.add(ix));
 
       // Get recent blockhash
@@ -570,6 +607,21 @@ export async function sendAndConfirmTransaction(
     },
     context
   );
+}
+
+// Helper: Extract unique writable accounts from instructions for fee estimation
+function extractAccountsFromInstructions(instructions: TransactionInstruction[]): PublicKey[] {
+  const accountSet = new Set<string>();
+
+  instructions.forEach(ix => {
+    ix.keys.forEach(key => {
+      if (key.isWritable) {
+        accountSet.add(key.pubkey.toBase58());
+      }
+    });
+  });
+
+  return Array.from(accountSet).map(addr => new PublicKey(addr));
 }
 
 export default {
