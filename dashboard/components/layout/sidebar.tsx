@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 import {
   LayoutDashboard,
   DollarSign,
@@ -10,6 +12,8 @@ import {
   Receipt,
   BarChart3,
   Zap,
+  Pause,
+  Play,
 } from 'lucide-react';
 
 const navigation = [
@@ -20,8 +24,25 @@ const navigation = [
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
 ];
 
+async function fetchStatus() {
+  const res = await fetch('/api/status');
+  if (!res.ok) throw new Error('Failed to fetch status');
+  return res.json();
+}
+
 export function Sidebar() {
   const pathname = usePathname();
+
+  const { data: status } = useQuery({
+    queryKey: ['status'],
+    queryFn: fetchStatus,
+    refetchInterval: 10000,
+  });
+
+  const motherload = status?.round?.motherlode || 0;
+  const motherloadThreshold = status?.automation?.motherloadThreshold || 150;
+  const isAboveThreshold = motherload >= motherloadThreshold;
+  const hasAutomation = status?.automation?.isActive || false;
 
   return (
     <div className="flex h-screen w-64 flex-col border-r border-border bg-card/30 backdrop-blur-sm">
@@ -57,15 +78,72 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Footer */}
-      <div className="border-t border-border p-4">
+      {/* Footer - Bot Status */}
+      <div className="border-t border-border p-4 space-y-3">
+        {/* Bot Status */}
+        <div className="rounded-lg bg-accent/50 p-3 space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">Bot Status</p>
+
+          {/* Active/Waiting Status */}
+          <div className="flex items-center gap-2">
+            {hasAutomation && isAboveThreshold ? (
+              <>
+                <Play className="h-3 w-3 text-green-500" />
+                <span className="text-sm font-semibold text-green-500">Mining</span>
+                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse ml-auto" />
+              </>
+            ) : (
+              <>
+                <Pause className="h-3 w-3 text-yellow-500" />
+                <span className="text-sm font-semibold text-yellow-500">Waiting</span>
+                <div className="h-2 w-2 rounded-full bg-yellow-500 animate-pulse ml-auto" />
+              </>
+            )}
+          </div>
+
+          {/* Motherload Status */}
+          <div className="space-y-1">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-muted-foreground">Motherload</span>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "text-xs",
+                  isAboveThreshold
+                    ? "bg-green-500/20 text-green-500 border-green-500/50"
+                    : "bg-yellow-500/20 text-yellow-500 border-yellow-500/50"
+                )}
+              >
+                {motherload.toFixed(2)} ORB
+              </Badge>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-muted-foreground">Threshold</span>
+              <span className="text-xs font-mono">{motherloadThreshold} ORB</span>
+            </div>
+          </div>
+
+          {/* Automation Status */}
+          {hasAutomation && (
+            <div className="pt-2 border-t border-border/50">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-muted-foreground">Automation</span>
+                <Badge variant="outline" className="bg-cyan-500/20 text-cyan-500 border-cyan-500/50 text-xs">
+                  {status?.balances?.automationSol?.toFixed(4)} SOL
+                </Badge>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Dashboard Status */}
         <div className="rounded-lg bg-accent/50 p-3">
-          <p className="text-xs font-medium text-muted-foreground">
-            Bot Status
-          </p>
-          <div className="mt-1 flex items-center gap-2">
-            <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-sm font-semibold text-green-500">Running</span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Dashboard</span>
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-green-500" />
+              <span className="text-xs font-semibold text-green-500">Online</span>
+            </div>
           </div>
         </div>
       </div>

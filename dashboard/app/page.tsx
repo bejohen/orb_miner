@@ -57,61 +57,56 @@ export default function Home() {
   return (
     <DashboardLayout>
       <div className="space-y-4">
-        {/* Compact Hero - PnL */}
+        {/* Profit & Loss Hero */}
         <Card className="border-primary/50 neon-border">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <p className="text-sm font-medium text-muted-foreground">Actual Profit</p>
-                  <Badge variant="outline" className={cn(isProfit ? "bg-green-500/20 text-green-500 border-green-500/50" : "bg-red-500/20 text-red-500 border-red-500/50")}>
-                    {isProfit ? '+' : ''}{roi.toFixed(2)}% ROI
-                  </Badge>
-                  {!pnl?.truePnL?.hasBaseline && (
-                    <Badge variant="outline" className="bg-yellow-500/20 text-yellow-500 border-yellow-500/50 text-xs">
-                      No Baseline
+          <CardContent className="pt-6 pb-6">
+            <div className="flex items-start justify-between gap-6">
+              {/* Main PnL Display */}
+              <div className="flex-1 space-y-4">
+                {/* Profit Amount */}
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-sm font-medium text-muted-foreground">Net Profit</h3>
+                    <Badge variant="outline" className={cn(isProfit ? "bg-green-500/20 text-green-500 border-green-500/50" : "bg-red-500/20 text-red-500 border-red-500/50")}>
+                      {isProfit ? '+' : ''}{roi.toFixed(2)}%
                     </Badge>
-                  )}
+                  </div>
+                  <div className="flex items-baseline gap-3">
+                    <span className={cn("text-5xl font-bold tracking-tight", isProfit ? "text-green-500 neon-text" : "text-red-500")}>
+                      {isProfit ? '+' : ''}{netPnL.toFixed(4)}
+                    </span>
+                    <span className="text-2xl font-semibold text-muted-foreground">SOL</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    {(pnl?.truePnL?.startingBalance || 0).toFixed(4)} SOL → {(pnl?.truePnL?.currentBalance || 0).toFixed(4)} SOL
+                  </p>
                 </div>
-                <div className="flex items-baseline gap-3">
-                  <span className={cn("text-4xl font-bold", isProfit ? "text-green-500 neon-text" : "text-red-500")}>
-                    {isProfit ? '+' : ''}{netPnL.toFixed(4)} SOL
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Started: {(pnl?.truePnL?.startingBalance || 0).toFixed(4)} SOL • Now: {(pnl?.truePnL?.currentBalance || 0).toFixed(4)} SOL
-                </p>
-                <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-border/50">
-                  <div className="flex flex-col gap-1">
-                    <span className="text-xs text-muted-foreground">SOL Claimed</span>
-                    <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/50">
-                      +{(pnl?.breakdown?.income?.solFromMining || 0).toFixed(4)}
-                    </Badge>
+
+                {/* Key Metrics */}
+                <div className="grid grid-cols-3 gap-6 pt-4 border-t border-border/50">
+                  <div className="text-center">
+                    <p className="text-xs text-muted-foreground mb-1">ORB Earned</p>
+                    <p className="text-base font-bold text-emerald-500">{(pnl?.breakdown?.income?.orbFromMining || 0).toFixed(2)}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">(before 10% fee)</p>
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-xs text-muted-foreground">ORB Earned</span>
-                    <Badge variant="outline" className="bg-emerald-500/20 text-emerald-500 border-emerald-500/50">
-                      {(pnl?.breakdown?.income?.orbFromMining || 0).toFixed(2)} ORB
-                    </Badge>
+                  <div className="text-center">
+                    <p className="text-xs text-muted-foreground mb-1">ORB Claimed</p>
+                    <p className="text-base font-bold text-purple-500">{(pnl?.breakdown?.income?.orbSwappedCount || 0).toFixed(2)}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">(after 10% fee)</p>
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-xs text-muted-foreground">Swapped ORB</span>
-                    <Badge variant="outline" className="bg-purple-500/20 text-purple-500 border-purple-500/50">
-                      {(pnl?.breakdown?.income?.orbSwappedCount || 0).toFixed(2)} ORB
-                    </Badge>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-xs text-muted-foreground">Total Fees</span>
-                    <Badge variant="outline" className="bg-red-500/20 text-red-500 border-red-500/50">
-                      -{(pnl?.summary?.totalExpenses || 0).toFixed(4)}
-                    </Badge>
+                  <div className="text-center">
+                    <p className="text-xs text-muted-foreground mb-1">Total Fees</p>
+                    <p className="text-base font-bold text-red-500">{(pnl?.summary?.totalExpenses || 0).toFixed(4)} SOL</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">(all costs)</p>
                   </div>
                 </div>
               </div>
+
+              {/* Icon */}
               {isProfit ? (
-                <TrendingUp className="h-12 w-12 text-green-500" />
+                <TrendingUp className="h-16 w-16 text-green-500 flex-shrink-0" />
               ) : (
-                <TrendingDown className="h-12 w-12 text-red-500" />
+                <TrendingDown className="h-16 w-16 text-red-500 flex-shrink-0" />
               )}
             </div>
           </CardContent>

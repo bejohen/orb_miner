@@ -101,6 +101,13 @@ export async function GET() {
         totalStaked: Number(treasury.totalStaked) / 1e9,
         totalUnclaimed: Number(treasury.totalUnclaimed) / 1e9,
       } : null,
+
+      // Automation info
+      automation: {
+        isActive: automationBalance > 0,
+        balance: automationBalance,
+        motherloadThreshold: config.motherloadThreshold,
+      },
     };
 
     return NextResponse.json(status);
