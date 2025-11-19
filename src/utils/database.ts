@@ -498,7 +498,8 @@ export async function getQuickPnLSnapshot(
   currentAutomationBalance: number = 0,
   currentClaimableSol: number = 0,
   currentClaimableOrb: number = 0,
-  currentWalletOrb: number = 0
+  currentWalletOrb: number = 0,
+  currentStakedOrb: number = 0
 ): Promise<QuickPnLSnapshot> {
   const summary = await getPnLSummary();
 
@@ -511,12 +512,9 @@ export async function getQuickPnLSnapshot(
   const totalReceived = summary.totalClaimedSol + summary.totalSwappedSol + currentAutomationBalance + currentClaimableSol;
   const netSolPnl = totalReceived - summary.totalDeployedSol;
 
-  // Calculate net ORB including:
-  // - Claimed ORB
-  // - Pending claimable ORB
-  // - Current wallet ORB
-  // - Minus swapped ORB
-  const netOrbBalance = summary.totalClaimedOrb + currentClaimableOrb + currentWalletOrb - summary.totalSwappedOrb;
+  // Calculate net ORB balance as current holdings
+  // (Swapped ORB is shown separately since it was converted to SOL and already counted in SOL PnL)
+  const netOrbBalance = currentClaimableOrb + currentWalletOrb + currentStakedOrb;
 
   return {
     totalDeployedSol: summary.totalDeployedSol,

@@ -12,9 +12,7 @@ import {
   fetchMiner,
   fetchStake,
 } from "../src/utils/accounts";
-import { getPnLSummary, getRecentTransactions } from "../src/utils/database";
-import { config } from "../src/utils/config";
-import { PublicKey } from "@solana/web3.js";
+import { getPnLSummary, getRecentTransactions, initializeDatabase, closeDatabase } from "../src/utils/database";
 
 interface ReconciliationReport {
   databaseState: {
@@ -64,8 +62,8 @@ async function getAutomationInfo() {
 async function reconcilePnL(): Promise<ReconciliationReport> {
   console.log("🔍 Starting PnL Reconciliation...\n");
 
+  await initializeDatabase();
   const wallet = getWallet();
-  const connection = getConnection();
 
   // Get database state
   console.log("📊 Reading database state...");
@@ -116,7 +114,9 @@ async function reconcilePnL(): Promise<ReconciliationReport> {
   let stakedOrb = 0;
   try {
     const stakeData = await fetchStake(wallet.publicKey);
-    stakedOrb = Number(stakeData.balance) / 1e9;
+    if (stakeData) {
+      stakedOrb = Number(stakeData.balance) / 1e9;
+    }
   } catch {
     // No stake account
   }
@@ -124,8 +124,8 @@ async function reconcilePnL(): Promise<ReconciliationReport> {
   const onChainState = {
     automationExists: automationInfo.exists,
     automationBalance: automationInfo.balance,
-    claimableSol: Number(minerData.rewardsSol) / 1e9,
-    claimableOrb: Number(minerData.rewardsOre) / 1e9,
+    claimableSol: minerData ? Number(minerData.rewardsSol) / 1e9 : 0,
+    claimableOrb: minerData ? Number(minerData.rewardsOre) / 1e9 : 0,
     walletSol,
     walletOrb: balances.orb,
     stakedOrb,
@@ -286,11 +286,13 @@ async function reconcilePnL(): Promise<ReconciliationReport> {
 
 // Run reconciliation
 reconcilePnL()
-  .then(() => {
+  .then(async () => {
     console.log("✅ Reconciliation complete!");
+    await closeDatabase();
     process.exit(0);
   })
-  .catch((error) => {
+  .catch(async (error) => {
     console.error("❌ Reconciliation failed:", error);
+    await closeDatabase();
     process.exit(1);
   });

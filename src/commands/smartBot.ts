@@ -462,7 +462,8 @@ async function displayQuickPnL(
   automationBalance: number,
   claimableSol: number,
   claimableOrb: number,
-  walletOrb: number
+  walletOrb: number,
+  stakedOrb: number
 ): Promise<void> {
   try {
     // Calculate total in-flight SOL (deployments not yet reflected on-chain)
@@ -473,7 +474,8 @@ async function displayQuickPnL(
       automationBalance,
       claimableSol, // Use raw value (don't add in-flight - it's already spent!)
       claimableOrb,
-      walletOrb
+      walletOrb,
+      stakedOrb
     );
 
     // Calculate ROI
@@ -495,8 +497,17 @@ async function displayQuickPnL(
       logger.info(`⏳ In-Flight: ${inFlightSol.toFixed(4)} SOL (${inFlightCount} round${inFlightCount > 1 ? 's' : ''} waiting for rewards)`);
     }
 
-    logger.info(`🪙 ORB Balance: ${pnl.netOrbBalance.toFixed(2)} ORB`);
-    logger.info(`   = ${pnl.totalClaimedOrb.toFixed(2)} claimed - ${pnl.totalSwappedOrb.toFixed(2)} swapped + ${claimableOrb.toFixed(2)} pending + ${walletOrb.toFixed(2)} wallet`);
+    // Calculate current ORB holdings (what you have now)
+    const currentOrbHoldings = claimableOrb + walletOrb + stakedOrb;
+
+    logger.info(`🪙 ORB Balance: ${currentOrbHoldings.toFixed(2)} ORB`);
+    logger.info(`   = ${claimableOrb.toFixed(2)} pending + ${walletOrb.toFixed(2)} wallet + ${stakedOrb.toFixed(2)} staked`);
+
+    // Show swaps separately (this ORB was sold and converted to SOL)
+    if (pnl.totalSwappedOrb > 0) {
+      logger.info(`💱 ORB Sold: ${pnl.totalSwappedOrb.toFixed(2)} ORB → ${pnl.totalSwappedSol.toFixed(4)} SOL (included in SOL PnL above)`);
+    }
+
     logger.info('───────────────────────────────────────────────');
   } catch (error) {
     logger.debug('Failed to display quick PnL:', error);
@@ -558,23 +569,59 @@ async function autoClaimMiningRewards(): Promise<void> {
     const wallet = getWallet();
     const instructions: TransactionInstruction[] = [];
 
-    // Check mining rewards
+    // Check if checkpoint is needed before claiming
+    const { fetchBoard } = await import('../utils/accounts');
+    const board = await fetchBoard();
     const miner = await fetchMiner(wallet.publicKey);
-    if (miner) {
-      const miningSol = Number(miner.rewardsSol) / 1e9;
-      const miningOrb = Number(miner.rewardsOre) / 1e9;
 
-      // Auto-claim SOL
-      if (miningSol >= config.autoClaimSolThreshold) {
-        ui.claim(`Claiming ${miningSol.toFixed(4)} SOL (mining rewards)`);
-        instructions.push(buildClaimSolInstruction());
-      }
+    if (!miner) {
+      logger.debug('No miner account found');
+      return;
+    }
 
-      // Auto-claim ORB from mining
-      if (miningOrb >= config.autoClaimOrbThreshold) {
-        ui.claim(`Claiming ${miningOrb.toFixed(2)} ORB (mining rewards)`);
-        instructions.push(await buildClaimOreInstruction());
+    // Checkpoint if needed (rewards must be checkpointed before they can be claimed)
+    if (miner.checkpointId.lt(board.roundId)) {
+      const roundsBehind = board.roundId.sub(miner.checkpointId).toNumber();
+      logger.debug(`Checkpointing ${roundsBehind} round(s) before claiming...`);
+
+      try {
+        const { buildCheckpointInstruction } = await import('../utils/program');
+        const checkpointIx = await buildCheckpointInstruction();
+        const checkpointSig = await sendAndConfirmTransaction([checkpointIx], 'Checkpoint');
+        logger.debug(`Checkpointed: ${checkpointSig}`);
+
+        // Wait a moment for state to update
+        await sleep(1000);
+      } catch (error: any) {
+        const errorMsg = error.message || String(error);
+        if (!errorMsg.includes('AlreadyProcessed')) {
+          logger.error(`Failed to checkpoint before claim: ${errorMsg}`);
+          return;
+        }
+        logger.debug('Rounds already checkpointed');
       }
+    }
+
+    // Re-fetch miner after checkpointing to get updated claimable amounts
+    const updatedMiner = await fetchMiner(wallet.publicKey);
+    if (!updatedMiner) {
+      logger.debug('No miner account found after checkpoint');
+      return;
+    }
+
+    const miningSolBefore = Number(updatedMiner.rewardsSol) / 1e9;
+    const miningOrbBefore = Number(updatedMiner.rewardsOre) / 1e9;
+
+    // Auto-claim SOL
+    if (miningSolBefore >= config.autoClaimSolThreshold) {
+      ui.claim(`Claiming ${miningSolBefore.toFixed(4)} SOL (mining rewards)`);
+      instructions.push(buildClaimSolInstruction());
+    }
+
+    // Auto-claim ORB from mining
+    if (miningOrbBefore >= config.autoClaimOrbThreshold) {
+      ui.claim(`Claiming ${miningOrbBefore.toFixed(2)} ORB (mining rewards)`);
+      instructions.push(await buildClaimOreInstruction());
     }
 
     // Send mining claims (if any)
@@ -583,27 +630,38 @@ async function autoClaimMiningRewards(): Promise<void> {
       ui.success(`Claimed mining rewards`);
       logger.debug(`Transaction: ${signature}`);
 
-      // Record claim transactions
+      // Get actual amounts claimed by comparing before/after
       try {
-        if (miner) {
-          const miningSol = Number(miner.rewardsSol) / 1e9;
-          const miningOrb = Number(miner.rewardsOre) / 1e9;
+        // Wait for state to update
+        await sleep(1000);
 
-          if (miningSol >= config.autoClaimSolThreshold) {
+        const minerAfter = await fetchMiner(wallet.publicKey);
+        if (minerAfter) {
+          const miningSolAfter = Number(minerAfter.rewardsSol) / 1e9;
+          const miningOrbAfter = Number(minerAfter.rewardsOre) / 1e9;
+
+          // Calculate actual amounts claimed (difference)
+          const actualSolClaimed = miningSolBefore - miningSolAfter;
+          const actualOrbClaimed = miningOrbBefore - miningOrbAfter;
+
+          logger.debug(`Actual claimed: ${actualSolClaimed.toFixed(4)} SOL, ${actualOrbClaimed.toFixed(4)} ORB`);
+
+          // Record only if actually claimed (> 0)
+          if (actualSolClaimed > 0.0001) {
             await recordTransaction({
               type: 'claim_sol',
               signature,
-              solAmount: miningSol,
+              solAmount: actualSolClaimed,
               status: 'success',
               notes: 'Mining rewards',
             });
           }
 
-          if (miningOrb >= config.autoClaimOrbThreshold) {
+          if (actualOrbClaimed > 0.0001) {
             await recordTransaction({
               type: 'claim_orb',
               signature,
-              orbAmount: miningOrb,
+              orbAmount: actualOrbClaimed,
               status: 'success',
               notes: 'Mining rewards',
             });
@@ -636,29 +694,43 @@ async function autoClaimStakingRewards(): Promise<void> {
     const wallet = getWallet();
 
     // Check staking rewards
-    const stake = await fetchStake(wallet.publicKey);
-    if (stake) {
-      const stakedAmount = Number(stake.balance) / 1e9;
+    const stakeBefore = await fetchStake(wallet.publicKey);
+    if (stakeBefore) {
+      const stakedAmount = Number(stakeBefore.balance) / 1e9;
+      const stakingOrbBefore = Number(stakeBefore.rewardsOre) / 1e9;
 
-      if (stakedAmount > 0 && !config.dryRun) {
-        logger.debug(`Staking: ${stakedAmount.toFixed(2)} ORB staked, attempting to claim ${config.autoClaimStakingOrbThreshold} ORB...`);
+      if (stakedAmount > 0 && stakingOrbBefore >= config.autoClaimStakingOrbThreshold && !config.dryRun) {
+        logger.debug(`Staking: ${stakedAmount.toFixed(2)} ORB staked, ${stakingOrbBefore.toFixed(4)} ORB claimable`);
 
         try {
           const claimInstruction = await buildClaimYieldInstruction(config.autoClaimStakingOrbThreshold);
           const signature = await sendAndConfirmTransaction([claimInstruction], 'Auto-Claim Staking');
           ui.success(`Claimed staking rewards`);
-          logger.debug(`Attempted to claim ${config.autoClaimStakingOrbThreshold} ORB from staking`);
           logger.debug(`Transaction: ${signature}`);
 
-          // Record staking claim transaction
+          // Get actual amount claimed by comparing before/after
           try {
-            await recordTransaction({
-              type: 'claim_orb',
-              signature,
-              orbAmount: config.autoClaimStakingOrbThreshold,
-              status: 'success',
-              notes: 'Staking rewards',
-            });
+            // Wait for state to update
+            await sleep(1000);
+
+            const stakeAfter = await fetchStake(wallet.publicKey);
+            if (stakeAfter) {
+              const stakingOrbAfter = Number(stakeAfter.rewardsOre) / 1e9;
+              const actualOrbClaimed = stakingOrbBefore - stakingOrbAfter;
+
+              logger.debug(`Actual staking rewards claimed: ${actualOrbClaimed.toFixed(4)} ORB`);
+
+              // Record only if actually claimed (> 0)
+              if (actualOrbClaimed > 0.0001) {
+                await recordTransaction({
+                  type: 'claim_orb',
+                  signature,
+                  orbAmount: actualOrbClaimed,
+                  status: 'success',
+                  notes: 'Staking rewards',
+                });
+              }
+            }
           } catch (error) {
             logger.error('Failed to record staking claim:', error);
           }
@@ -1411,11 +1483,23 @@ export async function smartBotCommand(): Promise<void> {
             const currentClaimableOrb = miner ? Number(miner.rewardsOre) / 1e9 : 0;
             const currentWalletOrb = balances.orb;
 
+            // Get staked ORB
+            let currentStakedOrb = 0;
+            try {
+              const currentStake = await fetchStake(wallet.publicKey);
+              if (currentStake) {
+                currentStakedOrb = Number(currentStake.balance) / 1e9;
+              }
+            } catch {
+              // No stake account
+            }
+
             await displayQuickPnL(
               currentAutomationBalance,
               currentClaimableSol,
               currentClaimableOrb,
-              currentWalletOrb
+              currentWalletOrb,
+              currentStakedOrb
             );
 
             ui.blank();

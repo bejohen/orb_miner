@@ -59,12 +59,25 @@ export async function pnlCommand(): Promise<void> {
     const currentClaimableOrb = miner ? Number(miner.rewardsOre) / 1e9 : 0;
     const currentWalletOrb = balances.orb;
 
+    // Get staked ORB
+    let currentStakedOrb = 0;
+    try {
+      const { fetchStake } = await import('../utils/accounts');
+      const stake = await fetchStake(wallet.publicKey);
+      if (stake) {
+        currentStakedOrb = Number(stake.balance) / 1e9;
+      }
+    } catch {
+      // No stake account
+    }
+
     // Get PnL snapshot including current balances
     const pnlSnapshot = await getQuickPnLSnapshot(
       currentAutomationBalance,
       currentClaimableSol,
       currentClaimableOrb,
-      currentWalletOrb
+      currentWalletOrb,
+      currentStakedOrb
     );
 
     // Get overall PnL summary (historical data)
