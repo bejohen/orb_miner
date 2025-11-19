@@ -130,6 +130,8 @@ ORB is a **lottery-style mining game** on Solana where:
 
 ## 🚀 Quick Start
 
+> ⚠️ **SECURITY FIRST:** Create a **FRESH, new wallet** for this bot. Never use your main wallet!
+
 ```bash
 # 1. Clone and install
 git clone https://github.com/CryptoGnome/orb_miner.git
@@ -138,7 +140,7 @@ npm install
 
 # 2. Configure your wallet
 cp .env.example .env
-# Edit .env and add your PRIVATE_KEY
+# Edit .env and add your PRIVATE_KEY from a FRESH wallet
 
 # 3. Start mining!
 npm start
@@ -151,8 +153,11 @@ npm start
 
 ### Prerequisites
 - Node.js v16+ ([Download](https://nodejs.org/))
-- A Solana wallet with 1-5+ SOL
+- **A FRESH, new Solana wallet** (create a brand new one - don't use existing wallet)
+- Fund new wallet with 1-5+ SOL for mining
 - Your wallet's private key in base58 format
+
+> ⚠️ **IMPORTANT:** For security, always create a brand new wallet specifically for this bot. Never use a wallet that holds significant funds or NFTs.
 
 ### Step-by-Step Setup
 
@@ -713,7 +718,10 @@ For developers and advanced users, see **[CLAUDE.md](CLAUDE.md)** for in-depth t
 <td>
 
 ### Best Practices
-- ✅ Use a dedicated wallet for bot operations
+- ✅ **Use a FRESH, dedicated wallet for bot operations**
+  - ⚠️ **STRONGLY RECOMMENDED:** Create a brand new wallet specifically for this bot
+  - Never use your main wallet with significant holdings
+  - Only transfer the SOL you plan to use for mining (e.g., 1-10 SOL)
 - ✅ Test with small amounts first (1-2 SOL)
 - ✅ Keep an offline backup of your private key
 - ✅ Monitor logs regularly for suspicious activity
