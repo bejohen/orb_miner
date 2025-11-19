@@ -34,6 +34,7 @@ import {
   recordPrice,
   getQuickPnLSnapshot
 } from '../utils/database';
+import { loadState, saveState, clearState } from '../utils/state';
 
 /**
  * Smart Autonomous ORB Mining Bot
@@ -88,7 +89,11 @@ let lastRewardsCheck = 0;
 let lastStakeCheck = 0;
 let lastSwapCheck = 0;
 let lastBalanceSnapshot = 0;
-let setupMotherload = 0; // Track motherload at automation setup time for dynamic scaling
+
+// Load persisted state on startup
+const botState = loadState();
+let setupMotherload = botState.setupMotherload; // Track motherload at automation setup time for dynamic scaling
+logger.info(`Loaded setupMotherload from state: ${setupMotherload.toFixed(2)} ORB`);
 
 // Setup graceful shutdown
 function setupSignalHandlers() {
@@ -407,6 +412,16 @@ async function autoSetupAutomation(): Promise<boolean> {
     // Track setup motherload for dynamic scaling
     setupMotherload = motherloadOrb;
     logger.debug(`Tracking setup motherload: ${setupMotherload.toFixed(2)} ORB`);
+
+    // Persist state to survive bot restarts
+    const board = await fetchBoard();
+    saveState({
+      setupMotherload: motherloadOrb,
+      setupTimestamp: Date.now(),
+      setupRoundId: board.roundId.toNumber(),
+      notes: `Setup with ${targetRounds} rounds @ ${solPerRound.toFixed(4)} SOL/round`,
+    });
+    logger.debug('Persisted automation setup state to disk');
 
     // Record automation setup in database
     try {
@@ -730,6 +745,11 @@ async function restartAutomationForScaling(): Promise<boolean> {
     } catch (error) {
       logger.error('Failed to record automation close:', error);
     }
+
+    // Clear persisted state since automation is closed
+    clearState();
+    setupMotherload = 0;
+    logger.debug('Cleared automation state - will be reset on next setup');
 
     // Wait for closure to propagate
     await sleep(2000);
@@ -1170,6 +1190,39 @@ export async function smartBotCommand(): Promise<void> {
     ui.status('Auto-Swap', config.autoSwapEnabled ? 'Enabled' : 'Disabled');
     ui.status('Auto-Stake', config.autoStakeEnabled ? 'Enabled' : 'Disabled');
     ui.blank();
+
+    // Quick startup reconciliation check
+    try {
+      const pnl = await getQuickPnLSnapshot();
+      const automationInfo = await getAutomationInfo();
+
+      // Warn if automation exists but not recorded in database
+      if (automationInfo && automationInfo.balance > 0 && pnl.totalDeployedSol === 0) {
+        ui.warning('⚠️  PnL Tracking Warning:');
+        ui.warning(`   Automation account has ${automationInfo.balance.toFixed(4)} SOL but no setup recorded in database`);
+        ui.warning('   This usually means the database was reset or corrupted.');
+        ui.warning('   Run: npx ts-node scripts/reconcile-pnl.ts to investigate');
+        ui.blank();
+      }
+
+      // Warn if negative PnL is significant (likely tracking issue)
+      const automationBalance = automationInfo?.balance || 0;
+      const currentValue = pnl.totalClaimedSol + pnl.totalSwappedSol + automationBalance;
+      const netPnL = currentValue - pnl.totalDeployedSol;
+      const lossPercent = pnl.totalDeployedSol > 0 ? (netPnL / pnl.totalDeployedSol) * 100 : 0;
+
+      if (netPnL < -0.5 && lossPercent < -30) {
+        ui.warning('⚠️  Large PnL Loss Detected:');
+        ui.warning(`   Net PnL: ${netPnL.toFixed(4)} SOL (${lossPercent.toFixed(1)}% loss)`);
+        ui.warning('   This may indicate tracking issues from manual operations.');
+        ui.warning('   Run: npx ts-node scripts/reconcile-pnl.ts to audit');
+        ui.warning('   Or reset: npx ts-node scripts/reset-pnl.ts');
+        ui.blank();
+      }
+    } catch (error) {
+      logger.debug('Startup reconciliation check failed (non-fatal):', error);
+    }
+
     ui.info('Bot is now running... Will create automation when motherload >= threshold');
     ui.blank();
 
@@ -1282,6 +1335,11 @@ export async function smartBotCommand(): Promise<void> {
                 } catch (error) {
                   logger.error('Failed to record automation close:', error);
                 }
+
+                // Clear persisted state since automation is closed
+                clearState();
+                setupMotherload = 0;
+                logger.debug('Cleared automation state - will be reset on next setup');
 
                 // Wait for closure to propagate before continuing
                 await sleep(2000);
