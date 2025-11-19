@@ -2,16 +2,18 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
-import { StatusCard } from '@/components/dashboard/status-card';
-import { PnLCard } from '@/components/dashboard/pnl-card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Wallet,
   Coins,
   TrendingUp,
+  TrendingDown,
   Zap,
   Activity,
-  DollarSign,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 async function fetchStatus() {
   const res = await fetch('/api/status');
@@ -29,150 +31,238 @@ export default function Home() {
   const { data: status, isLoading: statusLoading } = useQuery({
     queryKey: ['status'],
     queryFn: fetchStatus,
-    refetchInterval: 10000, // Refetch every 10 seconds
+    refetchInterval: 10000,
   });
 
   const { data: pnl, isLoading: pnlLoading } = useQuery({
     queryKey: ['pnl'],
     queryFn: fetchPnL,
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: 30000,
   });
 
   if (statusLoading || pnlLoading) {
     return (
       <DashboardLayout>
         <div className="flex h-full items-center justify-center">
-          <div className="text-center">
-            <Zap className="mx-auto h-12 w-12 animate-pulse text-primary" />
-            <p className="mt-4 text-lg text-muted-foreground">Loading dashboard...</p>
-          </div>
+          <Zap className="h-12 w-12 animate-pulse text-primary" />
         </div>
       </DashboardLayout>
     );
   }
 
-  // Extract values from unified PnL structure
   const netPnL = pnl?.summary?.netProfit || 0;
-  const totalIncome = pnl?.summary?.totalIncome || 0;
-  const totalExpenses = pnl?.summary?.totalExpenses || 0;
   const roi = pnl?.summary?.roi || 0;
-
-  // Debug logging
-  if (pnl) {
-    console.log('PnL API Response:', {
-      netProfit: pnl?.summary?.netProfit,
-      totalValue: pnl?.summary?.totalValue,
-      totalIncome: pnl?.summary?.totalIncome,
-      totalExpenses: pnl?.summary?.totalExpenses,
-      roi: pnl?.summary?.roi,
-      fullPnL: pnl
-    });
-  }
+  const isProfit = netPnL >= 0;
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-primary neon-text">
-            ORB Mining Dashboard
-          </h1>
-          <p className="text-muted-foreground">
-            Real-time monitoring and analytics
-          </p>
+      <div className="space-y-4">
+        {/* Compact Hero - PnL */}
+        <Card className="border-primary/50 neon-border">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm font-medium text-muted-foreground">Actual Profit</p>
+                  <Badge variant="outline" className={cn(isProfit ? "bg-green-500/20 text-green-500 border-green-500/50" : "bg-red-500/20 text-red-500 border-red-500/50")}>
+                    {isProfit ? '+' : ''}{roi.toFixed(2)}% ROI
+                  </Badge>
+                  {!pnl?.truePnL?.hasBaseline && (
+                    <Badge variant="outline" className="bg-yellow-500/20 text-yellow-500 border-yellow-500/50 text-xs">
+                      No Baseline
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-baseline gap-3">
+                  <span className={cn("text-4xl font-bold", isProfit ? "text-green-500 neon-text" : "text-red-500")}>
+                    {isProfit ? '+' : ''}{netPnL.toFixed(4)} SOL
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Started: {(pnl?.truePnL?.startingBalance || 0).toFixed(4)} SOL • Now: {(pnl?.truePnL?.currentBalance || 0).toFixed(4)} SOL
+                </p>
+                <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-border/50">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">SOL Claimed</span>
+                    <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/50">
+                      +{(pnl?.breakdown?.income?.solFromMining || 0).toFixed(4)}
+                    </Badge>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">ORB Earned</span>
+                    <Badge variant="outline" className="bg-emerald-500/20 text-emerald-500 border-emerald-500/50">
+                      {(pnl?.breakdown?.income?.orbFromMining || 0).toFixed(2)} ORB
+                    </Badge>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">Swapped ORB</span>
+                    <Badge variant="outline" className="bg-purple-500/20 text-purple-500 border-purple-500/50">
+                      {(pnl?.breakdown?.income?.orbSwappedCount || 0).toFixed(2)} ORB
+                    </Badge>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">Total Fees</span>
+                    <Badge variant="outline" className="bg-red-500/20 text-red-500 border-red-500/50">
+                      -{(pnl?.summary?.totalExpenses || 0).toFixed(4)}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+              {isProfit ? (
+                <TrendingUp className="h-12 w-12 text-green-500" />
+              ) : (
+                <TrendingDown className="h-12 w-12 text-red-500" />
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Compact Balances & Info */}
+        <div className="grid md:grid-cols-2 gap-4">
+          {/* Balances */}
+          <Card className="border-primary/30">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Wallet className="h-4 w-4" />
+                  Balances
+                </span>
+                <Badge variant="outline" className="bg-primary/20 text-primary border-primary/50">
+                  {((status?.balances?.sol || 0) + (status?.balances?.automationSol || 0)).toFixed(4)} SOL Total
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Main Wallet</span>
+                <div className="text-right">
+                  <div className="font-semibold">{status?.balances?.sol?.toFixed(4) || '0'} SOL</div>
+                  <div className="text-xs text-muted-foreground">{status?.balances?.orb?.toFixed(2) || '0'} ORB</div>
+                </div>
+              </div>
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Automation Bot</span>
+                  <Badge variant="outline" className="bg-cyan-500/20 text-cyan-500 border-cyan-500/50 text-xs">
+                    {status?.automation?.isActive ? 'Active' : 'Inactive'}
+                  </Badge>
+                </div>
+                <div className="font-semibold">{status?.balances?.automationSol?.toFixed(4) || '0'} SOL</div>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t">
+                <span className="text-sm text-muted-foreground">ORB Price</span>
+                <div className="text-right flex items-center gap-2">
+                  <div>
+                    <div className="font-semibold text-primary">${status?.prices?.orbPriceUsd?.toFixed(2) || '0'}</div>
+                    <div className="text-xs text-muted-foreground">{status?.prices?.orbPriceSol?.toFixed(6) || '0'} SOL</div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Current Round */}
+          <Card className="border-primary/30">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Activity className="h-4 w-4" />
+                  Current Round
+                </span>
+                <Badge variant="outline" className="font-mono">{status?.round?.id || 'N/A'}</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Prize Pool (Motherlode)</span>
+                <Badge variant="outline" className="bg-primary/20 text-primary border-primary/50 font-bold">
+                  {status?.round?.motherlode?.toFixed(2) || '0'} ORB
+                </Badge>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Your Staked ORB</span>
+                <div className="font-semibold">{status?.staking?.stakedOrb?.toFixed(2) || '0'} ORB</div>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t">
+                <span className="text-sm text-muted-foreground">Total Value</span>
+                <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/50">
+                  {((status?.balances?.sol || 0) + (status?.balances?.automationSol || 0) + ((status?.balances?.orb || 0) * (status?.prices?.orbPriceSol || 0))).toFixed(4)} SOL
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* PnL Card */}
-        <PnLCard
-          totalPnL={netPnL}
-          roi={roi}
-          income={totalIncome}
-          expenses={totalExpenses}
-        />
-
-        {/* Status Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <StatusCard
-            title="Wallet SOL"
-            value={`${status?.balances?.sol?.toFixed(4) || '0'} SOL`}
-            description="Main wallet balance"
-            icon={Wallet}
-            neonGlow
-          />
-          <StatusCard
-            title="Wallet ORB"
-            value={`${status?.balances?.orb?.toFixed(2) || '0'} ORB`}
-            description="ORB token balance"
-            icon={Coins}
-          />
-          <StatusCard
-            title="Automation Balance"
-            value={`${status?.balances?.automationSol?.toFixed(4) || '0'} SOL`}
-            description="Bot automation account"
-            icon={Zap}
-          />
-          <StatusCard
-            title="ORB Price"
-            value={`$${status?.prices?.orbPriceUsd?.toFixed(4) || '0'}`}
-            description={`${status?.prices?.orbPriceSol?.toFixed(6) || '0'} SOL`}
-            icon={TrendingUp}
-          />
-        </div>
-
-        {/* Claimable Rewards */}
-        <div>
-          <h2 className="text-xl font-bold text-foreground mb-4">
-            Claimable Rewards
-          </h2>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <StatusCard
-              title="Mining SOL"
-              value={`${status?.claimable?.sol?.toFixed(4) || '0'} SOL`}
-              description="Ready to claim"
-              icon={DollarSign}
-            />
-            <StatusCard
-              title="Mining ORB"
-              value={`${status?.claimable?.orb?.toFixed(2) || '0'} ORB`}
-              description="Ready to claim"
-              icon={Coins}
-            />
-            <StatusCard
-              title="Staking Rewards"
-              value={`${(status?.claimable?.stakingRewardsSol || 0).toFixed(4)} SOL + ${(status?.claimable?.stakingRewardsOrb || 0).toFixed(2)} ORB`}
-              description="From staked ORB"
-              icon={Activity}
-            />
-          </div>
-        </div>
-
-        {/* Current Round Info */}
-        <div>
-          <h2 className="text-xl font-bold text-foreground mb-4">
-            Current Round
-          </h2>
-          <div className="grid gap-4 md:grid-cols-3">
-            <StatusCard
-              title="Round ID"
-              value={status?.round?.id || 'N/A'}
-              description="Current mining round"
-              icon={Activity}
-            />
-            <StatusCard
-              title="Motherlode"
-              value={`${status?.round?.motherlode?.toFixed(2) || '0'} ORB`}
-              description="Total prize pool"
-              icon={Zap}
-              neonGlow
-            />
-            <StatusCard
-              title="Staked ORB"
-              value={`${status?.staking?.stakedOrb?.toFixed(2) || '0'} ORB`}
-              description="Your staked amount"
-              icon={Coins}
-            />
-          </div>
-        </div>
+        {/* Claimable Rewards - Compact Tabs */}
+        <Card className="border-primary/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Coins className="h-4 w-4" />
+                Claimable Rewards
+              </span>
+              <Badge variant="outline" className="bg-yellow-500/20 text-yellow-500 border-yellow-500/50">
+                Ready to Claim
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="mining" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="mining">
+                  Mining Rewards
+                </TabsTrigger>
+                <TabsTrigger value="staking">
+                  Staking Rewards
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="mining" className="mt-4 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">SOL from Mining</span>
+                  <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/50">
+                    {status?.claimable?.sol?.toFixed(4) || '0'} SOL
+                  </Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">ORB from Mining</span>
+                  <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/50">
+                    {status?.claimable?.orb?.toFixed(2) || '0'} ORB
+                  </Badge>
+                </div>
+                <div className="pt-2 border-t">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Total Value</span>
+                    <span className="font-bold text-green-500">
+                      ≈ {((status?.claimable?.sol || 0) + ((status?.claimable?.orb || 0) * (status?.prices?.orbPriceSol || 0))).toFixed(4)} SOL
+                    </span>
+                  </div>
+                </div>
+              </TabsContent>
+              <TabsContent value="staking" className="mt-4 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">SOL from Staking</span>
+                  <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/50">
+                    {(status?.claimable?.stakingRewardsSol || 0).toFixed(4)} SOL
+                  </Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">ORB from Staking</span>
+                  <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/50">
+                    {(status?.claimable?.stakingRewardsOrb || 0).toFixed(2)} ORB
+                  </Badge>
+                </div>
+                <div className="pt-2 border-t">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Total Value</span>
+                    <span className="font-bold text-green-500">
+                      ≈ {((status?.claimable?.stakingRewardsSol || 0) + ((status?.claimable?.stakingRewardsOrb || 0) * (status?.prices?.orbPriceSol || 0))).toFixed(4)} SOL
+                    </span>
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );

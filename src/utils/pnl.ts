@@ -89,19 +89,18 @@ export async function getTruePnL(
   // Calculate current holdings
   const totalSol = currentWalletSol + currentAutomationSol + currentClaimableSol;
 
-  // Bot ORB (wallet + claimable) - used for PnL calculation
+  // Bot ORB (wallet + claimable)
   const botOrb = currentWalletOrb + currentClaimableOrb;
-  const botOrbValueSol = botOrb * orbPriceSol;
 
   // Total ORB including staked (for display only)
   const totalOrb = botOrb + currentStakedOrb;
   const orbValueSol = totalOrb * orbPriceSol;
   const orbValueUsd = totalOrb * orbPriceSol * solPriceUsd;
 
-  // Current balance for PnL = all SOL + bot ORB value (excludes staked ORB)
-  const currentBalance = totalSol + botOrbValueSol;
+  // Current balance for PnL = ONLY SOL (ORB only counts as profit when sold)
+  const currentBalance = totalSol;
 
-  // Calculate profit
+  // Calculate profit (ORB is NOT counted until sold)
   const profit = currentBalance - startingBalance;
   const profitUsd = profit * solPriceUsd;
 
@@ -208,6 +207,7 @@ export async function getDetailedBreakdown(): Promise<DetailedBreakdown> {
   // Get expenses
   const expensesQuery = await getQuery<{
     deployed_sol: number;
+    actual_deploys: number;
     transaction_fees: number;
     protocol_fees: number;
     total_deployments: number;
@@ -219,6 +219,7 @@ export async function getDetailedBreakdown(): Promise<DetailedBreakdown> {
                  ELSE 0 END),
         0
       ) as deployed_sol,
+      COALESCE(SUM(CASE WHEN type = 'deploy' THEN sol_amount ELSE 0 END), 0) as actual_deploys,
       COALESCE(SUM(tx_fee_sol), 0) as transaction_fees,
       COALESCE(SUM(protocol_fee_sol), 0) as protocol_fees,
       COUNT(CASE WHEN type = 'deploy' THEN 1 END) as total_deployments
@@ -226,8 +227,8 @@ export async function getDetailedBreakdown(): Promise<DetailedBreakdown> {
     WHERE status = 'success'
   `);
 
-  // Calculate dev fees (0.5% of deployments)
-  const devFees = (expensesQuery?.deployed_sol || 0) * 0.005;
+  // Calculate dev fees (0.5% of actual deploy amounts, not automation setup)
+  const devFees = (expensesQuery?.actual_deploys || 0) * 0.005;
 
   // Get activity stats
   const statsQuery = await getQuery<{
@@ -338,7 +339,8 @@ export async function getCompletePnLSummary(
     netProfitUsd: truePnL.profitUsd,
     roi: truePnL.roi,
     totalValue: truePnL.currentBalance,
-    totalIncome: breakdown.income.totalSolIncome + (breakdown.income.totalOrbIncome * orbPriceSol),
+    // Total income = only SOL income (ORB only counts when swapped)
+    totalIncome: breakdown.income.totalSolIncome,
     totalExpenses: breakdown.expenses.totalExpenses,
     isProfitable: truePnL.profit > 0,
   };

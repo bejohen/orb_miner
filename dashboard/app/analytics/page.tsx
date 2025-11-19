@@ -2,8 +2,9 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart3 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { BarChart3, TrendingUp, Activity } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { format } from 'date-fns';
 
@@ -24,10 +25,7 @@ export default function Analytics() {
     return (
       <DashboardLayout>
         <div className="flex h-full items-center justify-center">
-          <div className="text-center">
-            <BarChart3 className="mx-auto h-12 w-12 animate-pulse text-primary" />
-            <p className="mt-4 text-lg text-muted-foreground">Loading analytics...</p>
-          </div>
+          <BarChart3 className="h-12 w-12 animate-pulse text-primary" />
         </div>
       </DashboardLayout>
     );
@@ -52,77 +50,90 @@ export default function Analytics() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-primary neon-text">Analytics</h1>
-          <p className="text-muted-foreground">Charts and data visualization</p>
-        </div>
-
-        {/* Balance History Chart */}
+      <div className="space-y-4">
         <Card className="border-primary/30">
-          <CardHeader>
-            <CardTitle>Balance History</CardTitle>
-            <CardDescription>SOL and ORB balance over time</CardDescription>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Analytics & Charts
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={balanceHistory}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                <XAxis dataKey="time" stroke="#888" />
-                <YAxis stroke="#888" />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
-                  labelStyle={{ color: '#fff' }}
-                />
-                <Line type="monotone" dataKey="sol" stroke="#00D9FF" strokeWidth={2} name="SOL" />
-                <Line type="monotone" dataKey="orb" stroke="#0EA5E9" strokeWidth={2} name="ORB" />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+            <Tabs defaultValue="balance" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="balance" className="text-xs">
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                  Balance
+                </TabsTrigger>
+                <TabsTrigger value="activity" className="text-xs">
+                  <Activity className="h-3 w-3 mr-1" />
+                  Activity
+                </TabsTrigger>
+                <TabsTrigger value="price" className="text-xs">
+                  <BarChart3 className="h-3 w-3 mr-1" />
+                  Price
+                </TabsTrigger>
+              </TabsList>
 
-        {/* Daily Summaries Chart */}
-        <Card className="border-primary/30">
-          <CardHeader>
-            <CardTitle>Daily Activity</CardTitle>
-            <CardDescription>Rounds participated and SOL deployed per day</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={dailySummaries}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                <XAxis dataKey="date" stroke="#888" />
-                <YAxis stroke="#888" />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
-                  labelStyle={{ color: '#fff' }}
-                />
-                <Bar dataKey="rounds" fill="#00D9FF" name="Rounds" />
-                <Bar dataKey="deployed" fill="#0EA5E9" name="Deployed (SOL)" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+              {/* Balance History */}
+              <TabsContent value="balance" className="mt-4">
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">SOL and ORB balance over time</p>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <LineChart data={balanceHistory}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                      <XAxis dataKey="time" stroke="#888" tick={{ fontSize: 10 }} />
+                      <YAxis stroke="#888" tick={{ fontSize: 10 }} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', fontSize: 12 }}
+                        labelStyle={{ color: '#fff' }}
+                      />
+                      <Line type="monotone" dataKey="sol" stroke="#00D9FF" strokeWidth={2} name="SOL" dot={false} />
+                      <Line type="monotone" dataKey="orb" stroke="#0EA5E9" strokeWidth={2} name="ORB" dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </TabsContent>
 
-        {/* ORB Price History */}
-        <Card className="border-primary/30">
-          <CardHeader>
-            <CardTitle>ORB Price History</CardTitle>
-            <CardDescription>ORB/USD price over time</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={priceHistory}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                <XAxis dataKey="time" stroke="#888" />
-                <YAxis stroke="#888" />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
-                  labelStyle={{ color: '#fff' }}
-                />
-                <Line type="monotone" dataKey="price" stroke="#00D9FF" strokeWidth={2} name="Price (USD)" />
-              </LineChart>
-            </ResponsiveContainer>
+              {/* Daily Activity */}
+              <TabsContent value="activity" className="mt-4">
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">Rounds participated and SOL deployed per day</p>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={dailySummaries}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                      <XAxis dataKey="date" stroke="#888" tick={{ fontSize: 10 }} />
+                      <YAxis stroke="#888" tick={{ fontSize: 10 }} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', fontSize: 12 }}
+                        labelStyle={{ color: '#fff' }}
+                      />
+                      <Bar dataKey="rounds" fill="#00D9FF" name="Rounds" />
+                      <Bar dataKey="deployed" fill="#0EA5E9" name="Deployed (SOL)" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </TabsContent>
+
+              {/* Price History */}
+              <TabsContent value="price" className="mt-4">
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">ORB/USD price over time</p>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <LineChart data={priceHistory}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                      <XAxis dataKey="time" stroke="#888" tick={{ fontSize: 10 }} />
+                      <YAxis stroke="#888" tick={{ fontSize: 10 }} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', fontSize: 12 }}
+                        labelStyle={{ color: '#fff' }}
+                      />
+                      <Line type="monotone" dataKey="price" stroke="#00D9FF" strokeWidth={2} name="Price (USD)" dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       </div>
