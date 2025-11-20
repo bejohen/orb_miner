@@ -1100,13 +1100,6 @@ async function autoMineRound(automationInfo: any): Promise<boolean> {
     const treasury = await fetchTreasury();
     const motherloadOrb = Number(treasury.motherlode) / 1e9;
 
-    // Record motherload to database for tracking/analytics
-    try {
-      await recordMotherload(motherloadOrb, board.roundId.toNumber());
-    } catch (error) {
-      logger.debug('Failed to record motherload:', error);
-    }
-
     if (motherloadOrb < config.motherloadThreshold) {
       ui.info(`⏸️  Motherload (${motherloadOrb.toFixed(2)} ORB) below threshold (${config.motherloadThreshold} ORB) - waiting...`);
       logger.debug(`Motherload below threshold, skipping deployment`);
@@ -1496,6 +1489,13 @@ export async function smartBotCommand(): Promise<void> {
           const treasury = await fetchTreasury();
           const currentMotherload = Number(treasury.motherlode) / 1e9;
           logger.debug(`Current motherload: ${currentMotherload.toFixed(2)} ORB (threshold: ${config.motherloadThreshold} ORB)`);
+
+          // Record motherload for analytics (track continuously, not just when mining)
+          try {
+            await recordMotherload(currentMotherload, board.roundId.toNumber());
+          } catch (error) {
+            logger.debug('Failed to record motherload:', error);
+          }
 
           // If motherload below threshold, skip automation setup/deployment but still do claims/swaps
           if (currentMotherload < config.motherloadThreshold) {
