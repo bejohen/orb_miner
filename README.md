@@ -85,7 +85,7 @@ pm2 startup  # Follow the instructions it gives you
 # 7. Monitor with PM2
 pm2 logs           # View logs
 pm2 status         # Check status
-pm2 restart all    # Restart both processes
+pm2 restart ecosystem.config.js    # Restart both processes (SAFE)
 ```
 
 **Access Dashboard Remotely:** `http://YOUR_SERVER_IP:3888`
@@ -286,10 +286,10 @@ pm2 logs                # All processes
 pm2 logs orb-bot        # Bot only
 pm2 logs orb-dashboard  # Dashboard only
 
-# Restart processes
-pm2 restart orb-bot orb-dashboard    # Restart only orb miner (SAFE - recommended)
-pm2 restart ecosystem.config.js      # Restart using ecosystem file (SAFE - alternative)
-pm2 restart all                      # Restart ALL PM2 processes (use with caution!)
+# Restart processes (recommended - safe methods)
+pm2 restart orb-bot orb-dashboard    # Restart only orb miner by name (RECOMMENDED)
+pm2 restart ecosystem.config.js      # Restart using ecosystem file (ALTERNATIVE)
+# CAUTION: Only use 'pm2 restart all' if no other PM2 processes are running!
 pm2 stop orb-bot orb-dashboard       # Stop only orb miner
 pm2 delete orb-bot orb-dashboard     # Remove from PM2
 
