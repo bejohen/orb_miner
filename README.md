@@ -22,6 +22,10 @@ ORB is a lottery-style mining game on Solana where miners deploy SOL to a 5x5 gr
 
 > ⚠️ **Use a FRESH, dedicated wallet** - Never use your main wallet!
 
+### Option 1: Local Development (Easiest)
+
+For running on your local computer with automatic browser setup:
+
 ```bash
 # 1. Clone and install
 git clone https://github.com/CryptoGnome/orb_miner.git
@@ -30,12 +34,13 @@ npm run setup
 
 # 2. Fund wallet with 1-5+ SOL
 
-# 3. Start bot + dashboard
+# 3. Start bot + dashboard together
 npm start
 
 # 4. Browser opens automatically to setup wizard
 # Enter your PRIVATE_KEY (encrypted & stored securely)
 # Optional: Custom RPC endpoint
+# Optional: Dashboard password
 
 # 5. That's it! Mining starts automatically
 ```
@@ -44,6 +49,48 @@ The bot handles everything: deployments, claims, swaps, and restarts. Press `Ctr
 
 **Monitor Dashboard:** [http://localhost:3888](http://localhost:3888)
 **Change Settings:** [http://localhost:3888/settings](http://localhost:3888/settings) _(no restart needed!)_
+
+---
+
+### Option 2: Server Deployment (Production)
+
+For running 24/7 on a Linux server (VPS, dedicated server, etc.):
+
+```bash
+# 1. Clone and install
+git clone https://github.com/CryptoGnome/orb_miner.git
+cd orb_miner
+npm run setup
+
+# 2. Fund wallet with 1-5+ SOL
+
+# 3. Start DASHBOARD FIRST (for initial setup)
+npm run start:dashboard
+# Dashboard runs on http://YOUR_SERVER_IP:3888
+
+# 4. Access setup wizard from your browser
+# Visit: http://YOUR_SERVER_IP:3888/setup
+# Enter your PRIVATE_KEY (encrypted & stored securely)
+# IMPORTANT: Set a strong dashboard password for remote access!
+# Optional: Custom RPC endpoint
+
+# 5. Stop dashboard (Ctrl+C) after setup is complete
+
+# 6. Start with PM2 for 24/7 operation
+npm install -g pm2
+pm2 start ecosystem.config.js
+pm2 save
+pm2 startup  # Follow the instructions it gives you
+
+# 7. Monitor with PM2
+pm2 logs           # View logs
+pm2 status         # Check status
+pm2 restart all    # Restart both processes
+```
+
+**Access Dashboard Remotely:** `http://YOUR_SERVER_IP:3888`
+
+**Why dashboard first?** The bot requires `PRIVATE_KEY` to be configured before it can run. The dashboard provides a secure web interface to configure this and other critical settings.
 
 <details>
 <summary>📋 <b>Detailed Setup Instructions</b></summary>
@@ -185,28 +232,19 @@ npm run pnl:reset        # Reset P&L tracking
 
 ---
 
-## 🚀 Production Deployment (PM2)
+## 🚀 Production Deployment with PM2
 
-For running the bot 24/7 on a Linux server, use **PM2** process manager:
+For running the bot 24/7 on a Linux server, see **[Option 2: Server Deployment](#option-2-server-deployment-production)** above for complete setup instructions.
 
-### Quick Setup
+### Important Setup Order for Servers
 
-```bash
-# Install PM2 globally
-npm install -g pm2
+1. ✅ **Dashboard first** - Run `npm run start:dashboard` to access setup wizard
+2. ✅ **Configure settings** - Visit `http://YOUR_SERVER_IP:3888/setup` and set PRIVATE_KEY + password
+3. ✅ **Start with PM2** - Use `pm2 start ecosystem.config.js` for 24/7 operation
 
-# Start bot + dashboard using ecosystem file
-pm2 start ecosystem.config.js
+**Why this order?** The bot cannot start without `PRIVATE_KEY` configured. The dashboard provides a secure web interface to set this up remotely.
 
-# Save process list (survives reboots)
-pm2 save
-
-# Setup auto-start on server reboot
-pm2 startup
-# (then run the command it outputs)
-```
-
-### PM2 Commands
+### PM2 Management Commands
 
 ```bash
 # View status
