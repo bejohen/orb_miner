@@ -71,6 +71,8 @@ export default function Home() {
   const netPnL = pnl?.summary?.netProfit || 0;
   const roi = pnl?.summary?.roi || 0;
   const isProfit = netPnL >= 0;
+  const solPriceUsd = pnl?.solPriceUsd || 0;
+  const orbPriceUsd = status?.prices?.orbPriceUsd || 0;
 
   // Prepare chart data - only show data from baseline onwards
   const baseline = pnl?.truePnL?.startingBalance || 0;
@@ -147,7 +149,7 @@ export default function Home() {
                     {isProfit ? '+' : ''}{roi.toFixed(2)}%
                   </Badge>
                 </div>
-                <div className="flex items-baseline gap-3 mb-3">
+                <div className="flex items-baseline gap-3 mb-1">
                   <span className={cn(
                     "text-6xl font-black tracking-tight",
                     isProfit ? "text-green-500 neon-text" : "text-red-500"
@@ -156,6 +158,9 @@ export default function Home() {
                   </span>
                   <span className="text-3xl font-bold text-muted-foreground/60">SOL</span>
                 </div>
+                <p className="text-lg font-semibold text-muted-foreground/80 mb-3">
+                  {isProfit ? '+' : ''}${(netPnL * solPriceUsd).toFixed(2)} USD
+                </p>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30 font-mono text-[10px] px-2 py-0.5">
                     START: {(pnl?.truePnL?.startingBalance || 0).toFixed(4)}
@@ -294,7 +299,9 @@ export default function Home() {
                 <span className="text-sm text-muted-foreground">Main Wallet</span>
                 <div className="text-right">
                   <div className="font-semibold">{status?.balances?.sol?.toFixed(4) || '0'} SOL</div>
-                  <div className="text-xs text-muted-foreground">{status?.balances?.orb?.toFixed(2) || '0'} ORB</div>
+                  <div className="text-xs text-muted-foreground">
+                    {status?.balances?.orb?.toFixed(2) || '0'} ORB · ${((status?.balances?.sol || 0) * solPriceUsd).toFixed(2)}
+                  </div>
                 </div>
               </div>
               <div className="flex justify-between items-center">
@@ -304,7 +311,10 @@ export default function Home() {
                     {status?.automation?.isActive ? 'Active' : 'Inactive'}
                   </Badge>
                 </div>
-                <div className="font-semibold">{status?.balances?.automationSol?.toFixed(4) || '0'} SOL</div>
+                <div className="text-right">
+                  <div className="font-semibold">{status?.balances?.automationSol?.toFixed(4) || '0'} SOL</div>
+                  <div className="text-xs text-muted-foreground">${((status?.balances?.automationSol || 0) * solPriceUsd).toFixed(2)}</div>
+                </div>
               </div>
               <div className="flex justify-between items-center pt-2 border-t">
                 <span className="text-sm text-muted-foreground">ORB Price</span>
@@ -332,9 +342,14 @@ export default function Home() {
             <CardContent className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Prize Pool (Motherlode)</span>
-                <Badge variant="outline" className="bg-primary/20 text-primary border-primary/50 font-bold">
-                  {status?.round?.motherlode?.toFixed(2) || '0'} ORB
-                </Badge>
+                <div className="text-right">
+                  <Badge variant="outline" className="bg-primary/20 text-primary border-primary/50 font-bold">
+                    {status?.round?.motherlode?.toFixed(2) || '0'} ORB
+                  </Badge>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    ≈ ${((status?.round?.motherlode || 0) * orbPriceUsd).toFixed(2)} USD
+                  </div>
+                </div>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Your Staked ORB</span>
@@ -342,9 +357,14 @@ export default function Home() {
               </div>
               <div className="flex justify-between items-center pt-2 border-t">
                 <span className="text-sm text-muted-foreground">Total Value</span>
-                <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/50">
-                  {((status?.balances?.sol || 0) + (status?.balances?.automationSol || 0) + ((status?.balances?.orb || 0) * (status?.prices?.orbPriceSol || 0))).toFixed(4)} SOL
-                </Badge>
+                <div className="text-right">
+                  <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/50">
+                    {((status?.balances?.sol || 0) + (status?.balances?.automationSol || 0) + ((status?.balances?.orb || 0) * (status?.prices?.orbPriceSol || 0))).toFixed(4)} SOL
+                  </Badge>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    ${(((status?.balances?.sol || 0) + (status?.balances?.automationSol || 0) + ((status?.balances?.orb || 0) * (status?.prices?.orbPriceSol || 0))) * solPriceUsd).toFixed(2)} USD
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -376,42 +396,72 @@ export default function Home() {
               <TabsContent value="mining" className="mt-4 space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">SOL from Mining</span>
-                  <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/50">
-                    {status?.claimable?.sol?.toFixed(4) || '0'} SOL
-                  </Badge>
+                  <div className="text-right">
+                    <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/50">
+                      {status?.claimable?.sol?.toFixed(4) || '0'} SOL
+                    </Badge>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      ${((status?.claimable?.sol || 0) * solPriceUsd).toFixed(2)}
+                    </div>
+                  </div>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">ORB from Mining</span>
-                  <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/50">
-                    {status?.claimable?.orb?.toFixed(2) || '0'} ORB
-                  </Badge>
+                  <div className="text-right">
+                    <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/50">
+                      {status?.claimable?.orb?.toFixed(2) || '0'} ORB
+                    </Badge>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      ${((status?.claimable?.orb || 0) * orbPriceUsd).toFixed(2)}
+                    </div>
+                  </div>
                 </div>
                 <div className="pt-2 border-t">
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">Total Value</span>
-                    <span className="font-bold text-green-500">
-                      ≈ {((status?.claimable?.sol || 0) + ((status?.claimable?.orb || 0) * (status?.prices?.orbPriceSol || 0))).toFixed(4)} SOL
-                    </span>
+                    <div className="text-right">
+                      <span className="font-bold text-green-500">
+                        ≈ {((status?.claimable?.sol || 0) + ((status?.claimable?.orb || 0) * (status?.prices?.orbPriceSol || 0))).toFixed(4)} SOL
+                      </span>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        ${(((status?.claimable?.sol || 0) + ((status?.claimable?.orb || 0) * (status?.prices?.orbPriceSol || 0))) * solPriceUsd).toFixed(2)} USD
+                      </div>
+                    </div>
                   </div>
                 </div>
               </TabsContent>
               <TabsContent value="staking" className="mt-4 space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Claimable ORB</span>
-                  <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/50">
-                    {(status?.staking?.accruedRewardsOrb || 0).toFixed(9)} ORB
-                  </Badge>
+                  <div className="text-right">
+                    <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/50">
+                      {(status?.staking?.accruedRewardsOrb || 0).toFixed(9)} ORB
+                    </Badge>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      ${((status?.staking?.accruedRewardsOrb || 0) * orbPriceUsd).toFixed(4)}
+                    </div>
+                  </div>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Your Staked ORB</span>
-                  <span className="text-sm font-semibold">{(status?.staking?.stakedOrb || 0).toFixed(2)} ORB</span>
+                  <div className="text-right">
+                    <span className="text-sm font-semibold">{(status?.staking?.stakedOrb || 0).toFixed(2)} ORB</span>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      ${((status?.staking?.stakedOrb || 0) * orbPriceUsd).toFixed(2)}
+                    </div>
+                  </div>
                 </div>
                 <div className="pt-2 border-t">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Total Value</span>
-                    <span className="font-bold text-green-500">
-                      ≈ {((status?.staking?.accruedRewardsOrb || 0) * (status?.prices?.orbPriceSol || 0)).toFixed(4)} SOL
-                    </span>
+                    <span className="text-sm font-medium">Reward Value</span>
+                    <div className="text-right">
+                      <span className="font-bold text-green-500">
+                        ≈ {((status?.staking?.accruedRewardsOrb || 0) * (status?.prices?.orbPriceSol || 0)).toFixed(4)} SOL
+                      </span>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        ${(((status?.staking?.accruedRewardsOrb || 0) * (status?.prices?.orbPriceSol || 0)) * solPriceUsd).toFixed(4)} USD
+                      </div>
+                    </div>
                   </div>
                 </div>
               </TabsContent>
