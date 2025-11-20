@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
@@ -41,6 +42,12 @@ async function fetchGitStatus() {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
+
+  // Only apply active state after hydration to avoid mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const { data: status } = useQuery({
     queryKey: ['status'],
@@ -74,7 +81,7 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 space-y-1 p-4">
         {navigation.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive = mounted && pathname === item.href;
           return (
             <Link
               key={item.name}

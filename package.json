@@ -4,6 +4,7 @@
   "description": "Automated ORB mining bot for Solana with Jupiter swap integration",
   "main": "dist/index.js",
   "scripts": {
+    "setup": "npm install && cd dashboard && npm install",
     "start": "concurrently --names \"BOT,DASHBOARD\" --prefix-colors \"cyan,magenta\" \"npm run start:bot\" \"npm run start:dashboard\"",
     "start:bot": "ts-node src/index.ts",
     "start:dashboard": "cd dashboard && npm run dev",
