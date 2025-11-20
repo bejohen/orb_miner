@@ -287,10 +287,11 @@ pm2 logs orb-bot        # Bot only
 pm2 logs orb-dashboard  # Dashboard only
 
 # Restart processes
-pm2 restart orb-bot orb-dashboard  # Restart only orb miner (SAFE)
-pm2 restart all                     # Restart ALL PM2 processes (use with caution!)
-pm2 stop orb-bot orb-dashboard     # Stop only orb miner
-pm2 delete orb-bot orb-dashboard   # Remove from PM2
+pm2 restart orb-bot orb-dashboard    # Restart only orb miner (SAFE - recommended)
+pm2 restart ecosystem.config.js      # Restart using ecosystem file (SAFE - alternative)
+pm2 restart all                      # Restart ALL PM2 processes (use with caution!)
+pm2 stop orb-bot orb-dashboard       # Stop only orb miner
+pm2 delete orb-bot orb-dashboard     # Remove from PM2
 
 # Save and auto-start on reboot
 pm2 save
