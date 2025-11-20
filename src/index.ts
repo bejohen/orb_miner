@@ -3,7 +3,8 @@ import { smartBotCommand } from './commands/smartBot';
 import { pnlCommand } from './commands/pnl';
 import { setBaselineCommand } from './commands/setBaseline';
 import { initializeDatabase, closeDatabase } from './utils/database';
-import { runQuery } from './utils/database';
+import { runQuery, getQuery } from './utils/database';
+import open from 'open';
 
 /**
  * ORB Mining Bot - CLI Entry Point
@@ -58,12 +59,43 @@ async function main() {
     logger.info('Loading configuration from database...');
     logger.info('');
 
+    // Open browser to dashboard on startup
+    await openDashboard();
+
     await smartBotCommand();
 
     logger.info('Bot stopped successfully');
   } catch (error) {
     logger.error('Command execution failed:', error);
     process.exit(1);
+  }
+}
+
+async function openDashboard() {
+  try {
+    // Initialize database to read port
+    await initializeDatabase();
+
+    // Get dashboard port from database
+    const portRow = await getQuery<{ value: string }>(
+      'SELECT value FROM settings WHERE key = ?',
+      ['DASHBOARD_PORT']
+    );
+
+    const port = portRow?.value || '3888';
+    const url = `http://localhost:${port}`;
+
+    logger.info(`🌐 Opening dashboard at ${url}`);
+    logger.info('');
+
+    // Open browser (don't wait for it to finish)
+    open(url).catch((error) => {
+      logger.warn('Failed to open browser automatically:', error.message);
+      logger.info(`Please open ${url} manually in your browser`);
+    });
+  } catch (error) {
+    logger.warn('Could not auto-open browser:', error);
+    logger.info('Dashboard should be available at http://localhost:3888');
   }
 }
 

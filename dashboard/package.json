@@ -4,11 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:remote": "node start-dashboard.js --dev",
     "build": "next build",
     "start": "next start",
+    "start:remote": "node start-dashboard.js",
     "lint": "eslint"
   },
   "dependencies": {
+    "better-sqlite3": "^11.7.0",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-label": "^2.1.8",

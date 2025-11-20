@@ -7,7 +7,7 @@
     "setup": "npm install && cd dashboard && npm install",
     "start": "concurrently --names \"BOT,DASHBOARD\" --prefix-colors \"cyan,magenta\" \"npm run start:bot\" \"npm run start:dashboard\"",
     "start:bot": "ts-node src/index.ts",
-    "start:dashboard": "cd dashboard && npm run dev",
+    "start:dashboard": "cd dashboard && node start-dashboard.js --dev",
     "dev": "nodemon --exec ts-node src/index.ts",
     "build": "tsc",
     "build:dashboard": "cd dashboard && npm run build",
@@ -35,6 +35,7 @@
     "axios": "^1.7.2",
     "bs58": "^5.0.0",
     "dotenv": "^16.4.5",
+    "open": "^9.1.0",
     "sqlite3": "^5.1.7",
     "winston": "^3.13.0"
   },

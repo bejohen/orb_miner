@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,9 +13,54 @@ export default function SetupPage() {
   const router = useRouter();
   const [privateKey, setPrivateKey] = useState('');
   const [rpcEndpoint, setRpcEndpoint] = useState('https://api.mainnet-beta.solana.com');
+  const [dashboardPassword, setDashboardPassword] = useState('');
+  const [dashboardPort, setDashboardPort] = useState('3888');
   const [loading, setLoading] = useState(false);
+  const [loadingSettings, setLoadingSettings] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [hasExistingKey, setHasExistingKey] = useState(false);
+  const [hasExistingPassword, setHasExistingPassword] = useState(false);
+
+  useEffect(() => {
+    // Load existing settings
+    const loadSettings = async () => {
+      try {
+        const response = await fetch('/api/settings');
+        const data = await response.json();
+
+        if (data.settings) {
+          // Check if private key is set
+          if (data.settings.PRIVATE_KEY?.hasValue) {
+            setPrivateKey('********');
+            setHasExistingKey(true);
+          }
+
+          // Check if password is set
+          if (data.settings.DASHBOARD_PASSWORD?.hasValue) {
+            setDashboardPassword('********');
+            setHasExistingPassword(true);
+          }
+
+          // Load RPC endpoint
+          if (data.settings.RPC_ENDPOINT?.value) {
+            setRpcEndpoint(data.settings.RPC_ENDPOINT.value);
+          }
+
+          // Load port
+          if (data.settings.DASHBOARD_PORT?.value) {
+            setDashboardPort(String(data.settings.DASHBOARD_PORT.value));
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      } finally {
+        setLoadingSettings(false);
+      }
+    };
+
+    loadSettings();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,22 +69,40 @@ export default function SetupPage() {
 
     try {
       // Validate private key format (basic validation)
-      if (!privateKey.trim()) {
+      // Skip validation if using existing key (shown as stars)
+      if (!privateKey.trim() || (privateKey === '********' && !hasExistingKey)) {
         throw new Error('Private key is required');
       }
 
-      if (privateKey.length < 50) {
+      if (privateKey !== '********' && privateKey.length < 50) {
         throw new Error('Private key appears to be invalid (too short)');
       }
 
       // Save settings
+      const settings: Record<string, string | number> = {
+        RPC_ENDPOINT: rpcEndpoint.trim() || 'https://api.mainnet-beta.solana.com',
+      };
+
+      // Only update private key if it was changed (not showing stars)
+      if (privateKey !== '********') {
+        settings.PRIVATE_KEY = privateKey.trim();
+      }
+
+      // Only update password if it was changed (not showing stars)
+      if (dashboardPassword.trim() && dashboardPassword !== '********') {
+        settings.DASHBOARD_PASSWORD = dashboardPassword.trim();
+      }
+
+      // Add dashboard port
+      const port = parseInt(dashboardPort) || 3000;
+      if (port >= 1024 && port <= 65535) {
+        settings.DASHBOARD_PORT = port;
+      }
+
       const response = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          PRIVATE_KEY: privateKey.trim(),
-          RPC_ENDPOINT: rpcEndpoint.trim() || 'https://api.mainnet-beta.solana.com',
-        }),
+        body: JSON.stringify(settings),
       });
 
       if (!response.ok) {
@@ -78,13 +141,21 @@ export default function SetupPage() {
     );
   }
 
+  if (loadingSettings) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background to-muted/20">
       <Card className="w-full max-w-2xl">
         <CardHeader>
-          <CardTitle className="text-3xl font-bold text-center">🚀 Welcome to ORB Mining Bot</CardTitle>
+          <CardTitle className="text-3xl font-bold text-center">🚀 {hasExistingKey ? 'Update' : 'Welcome to'} ORB Mining Bot</CardTitle>
           <CardDescription className="text-center text-base mt-2">
-            Let's get you set up in just a few steps
+            {hasExistingKey ? 'Update your configuration settings' : "Let's get you set up in just a few steps"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -94,21 +165,29 @@ export default function SetupPage() {
               <Label htmlFor="privateKey" className="flex items-center gap-2 text-base">
                 <Lock className="h-4 w-4" />
                 Wallet Private Key
-                <span className="text-red-500">*</span>
+                {!hasExistingKey && <span className="text-red-500">*</span>}
+                {hasExistingKey && <span className="text-green-500 text-sm">(Already set)</span>}
               </Label>
               <Input
                 id="privateKey"
                 type="password"
-                placeholder="Enter your Base58 private key"
+                placeholder={hasExistingKey ? "Leave as ******** to keep current key" : "Enter your Base58 private key"}
                 value={privateKey}
                 onChange={(e) => setPrivateKey(e.target.value)}
+                onFocus={(e) => {
+                  // Clear stars when user clicks to edit
+                  if (e.target.value === '********') {
+                    setPrivateKey('');
+                  }
+                }}
                 className="font-mono"
-                required
+                required={!hasExistingKey}
                 disabled={loading}
               />
               <p className="text-sm text-muted-foreground">
-                Your private key will be encrypted and stored securely in the database.
-                It's never transmitted to any external servers.
+                {hasExistingKey
+                  ? 'Your private key is already set. Clear the field to enter a new one.'
+                  : 'Your private key will be encrypted and stored securely in the database.'}
               </p>
             </div>
 
@@ -128,6 +207,55 @@ export default function SetupPage() {
               />
               <p className="text-sm text-muted-foreground">
                 Recommended: Use a premium RPC provider (Helius, Triton, QuickNode) for better performance
+              </p>
+            </div>
+
+            {/* Dashboard Password Input */}
+            <div className="space-y-2">
+              <Label htmlFor="dashboardPassword" className="flex items-center gap-2 text-base">
+                <Lock className="h-4 w-4" />
+                Dashboard Password
+                {hasExistingPassword && <span className="text-green-500 text-sm">(Already set)</span>}
+              </Label>
+              <Input
+                id="dashboardPassword"
+                type="password"
+                placeholder={hasExistingPassword ? "Leave as ******** to keep current password" : "Leave empty for no password protection"}
+                value={dashboardPassword}
+                onChange={(e) => setDashboardPassword(e.target.value)}
+                onFocus={(e) => {
+                  // Clear stars when user clicks to edit
+                  if (e.target.value === '********') {
+                    setDashboardPassword('');
+                  }
+                }}
+                disabled={loading}
+              />
+              <p className="text-sm text-muted-foreground">
+                {hasExistingPassword
+                  ? 'Your password is already set. Clear the field to enter a new one.'
+                  : 'Recommended for remote access: Set a strong password to protect your dashboard'}
+              </p>
+            </div>
+
+            {/* Dashboard Port Input */}
+            <div className="space-y-2">
+              <Label htmlFor="dashboardPort" className="flex items-center gap-2 text-base">
+                <Server className="h-4 w-4" />
+                Dashboard Port
+              </Label>
+              <Input
+                id="dashboardPort"
+                type="number"
+                placeholder="3000"
+                value={dashboardPort}
+                onChange={(e) => setDashboardPort(e.target.value)}
+                min="1024"
+                max="65535"
+                disabled={loading}
+              />
+              <p className="text-sm text-muted-foreground">
+                Port number for accessing the dashboard (default: 3000, requires restart to take effect)
               </p>
             </div>
 
@@ -153,7 +281,7 @@ export default function SetupPage() {
               type="submit"
               className="w-full"
               size="lg"
-              disabled={loading || !privateKey.trim()}
+              disabled={loading || (!privateKey.trim() && !hasExistingKey)}
             >
               {loading ? (
                 <>
