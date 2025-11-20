@@ -4,7 +4,10 @@ import fs from 'fs';
 import logger from './logger';
 
 // Database file path
-const DB_DIR = path.join(process.cwd(), 'data');
+// If running from dashboard (process.cwd() ends with 'dashboard'), use parent directory
+const isRunningFromDashboard = process.cwd().endsWith('dashboard');
+const rootDir = isRunningFromDashboard ? path.join(process.cwd(), '..') : process.cwd();
+const DB_DIR = path.join(rootDir, 'data');
 const DB_PATH = path.join(DB_DIR, 'orb_mining.db');
 
 // Ensure data directory exists
@@ -28,6 +31,9 @@ export async function initializeDatabase(): Promise<void> {
       }
 
       logger.info(`Database connected: ${DB_PATH}`);
+      if (isRunningFromDashboard) {
+        logger.info('Running from dashboard - using shared database in parent directory');
+      }
 
       // Create tables
       createTables()
@@ -91,16 +97,71 @@ async function createTables(): Promise<void> {
       created_at INTEGER DEFAULT (strftime('%s', 'now'))
     )`,
 
+    // In-flight deployments table - track deployments awaiting rewards
+    `CREATE TABLE IF NOT EXISTS in_flight_deployments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      round_id INTEGER NOT NULL,
+      sol_amount REAL NOT NULL,
+      timestamp INTEGER NOT NULL,
+      resolved INTEGER DEFAULT 0,
+      created_at INTEGER DEFAULT (strftime('%s', 'now'))
+    )`,
+
+    // Motherload history table - track motherload changes over time
+    `CREATE TABLE IF NOT EXISTS motherload_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp INTEGER NOT NULL,
+      motherload REAL NOT NULL,
+      round_id INTEGER,
+      created_at INTEGER DEFAULT (strftime('%s', 'now'))
+    )`,
+
+    // Settings table - runtime configurable settings
+    `CREATE TABLE IF NOT EXISTS settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      key TEXT UNIQUE NOT NULL,
+      value TEXT NOT NULL,
+      type TEXT NOT NULL,
+      description TEXT,
+      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+    )`,
+
     // Indexes for faster queries
     `CREATE INDEX IF NOT EXISTS idx_transactions_timestamp ON transactions(timestamp)`,
     `CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type)`,
     `CREATE INDEX IF NOT EXISTS idx_rounds_timestamp ON rounds(timestamp)`,
     `CREATE INDEX IF NOT EXISTS idx_balances_timestamp ON balances(timestamp)`,
     `CREATE INDEX IF NOT EXISTS idx_prices_timestamp ON prices(timestamp)`,
+    `CREATE INDEX IF NOT EXISTS idx_in_flight_resolved ON in_flight_deployments(resolved)`,
+    `CREATE INDEX IF NOT EXISTS idx_motherload_timestamp ON motherload_history(timestamp)`,
+    `CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key)`,
   ];
 
   for (const sql of tables) {
     await runQuery(sql);
+  }
+
+  // Add new columns to existing tables (safe to run multiple times)
+  // Use silent query to avoid logging expected duplicate column errors
+  const alterStatements = [
+    `ALTER TABLE transactions ADD COLUMN orb_price_usd REAL DEFAULT 0`,
+    `ALTER TABLE transactions ADD COLUMN tx_fee_sol REAL DEFAULT 0`,
+    `ALTER TABLE transactions ADD COLUMN protocol_fee_sol REAL DEFAULT 0`,
+    `ALTER TABLE transactions ADD COLUMN wallet_balance_before REAL DEFAULT 0`,
+    `ALTER TABLE transactions ADD COLUMN wallet_balance_after REAL DEFAULT 0`,
+    `ALTER TABLE balances ADD COLUMN orb_price_usd REAL DEFAULT 0`,
+  ];
+
+  for (const sql of alterStatements) {
+    try {
+      await runQuerySilent(sql);
+    } catch (err: any) {
+      // Ignore "duplicate column name" errors (column already exists)
+      if (!err.message.includes('duplicate column name')) {
+        logger.error('Unexpected error during schema migration:', err);
+        throw err;
+      }
+    }
   }
 
   logger.info('Database tables initialized');
@@ -109,7 +170,7 @@ async function createTables(): Promise<void> {
 /**
  * Run a SQL query with no return value
  */
-function runQuery(sql: string, params: any[] = []): Promise<void> {
+export function runQuery(sql: string, params: any[] = []): Promise<void> {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error('Database not initialized'));
@@ -128,9 +189,29 @@ function runQuery(sql: string, params: any[] = []): Promise<void> {
 }
 
 /**
+ * Run a SQL query silently (no error logging) - for expected errors like duplicate columns
+ */
+function runQuerySilent(sql: string, params: any[] = []): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error('Database not initialized'));
+      return;
+    }
+
+    db.run(sql, params, (err) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+/**
  * Get a single row from database
  */
-function getQuery<T>(sql: string, params: any[] = []): Promise<T | undefined> {
+export function getQuery<T>(sql: string, params: any[] = []): Promise<T | undefined> {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error('Database not initialized'));
@@ -151,7 +232,7 @@ function getQuery<T>(sql: string, params: any[] = []): Promise<T | undefined> {
 /**
  * Get all rows from database
  */
-function allQuery<T>(sql: string, params: any[] = []): Promise<T[]> {
+export function allQuery<T>(sql: string, params: any[] = []): Promise<T[]> {
   return new Promise((resolve, reject) => {
     if (!db) {
       reject(new Error('Database not initialized'));
@@ -204,12 +285,20 @@ export interface TransactionRecord {
   orbAmount?: number;
   status: 'success' | 'failed';
   notes?: string;
+  orbPriceUsd?: number;
+  txFeeSol?: number;
+  protocolFeeSol?: number;
+  walletBalanceBefore?: number;
+  walletBalanceAfter?: number;
 }
 
 export async function recordTransaction(record: TransactionRecord): Promise<void> {
   const sql = `
-    INSERT INTO transactions (timestamp, type, signature, round_id, sol_amount, orb_amount, status, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO transactions (
+      timestamp, type, signature, round_id, sol_amount, orb_amount, status, notes,
+      orb_price_usd, tx_fee_sol, protocol_fee_sol, wallet_balance_before, wallet_balance_after
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
   const params = [
@@ -221,6 +310,11 @@ export async function recordTransaction(record: TransactionRecord): Promise<void
     record.orbAmount || 0,
     record.status,
     record.notes || null,
+    record.orbPriceUsd || 0,
+    record.txFeeSol || 0,
+    record.protocolFeeSol || 0,
+    record.walletBalanceBefore || 0,
+    record.walletBalanceAfter || 0,
   ];
 
   await runQuery(sql, params);
@@ -260,11 +354,12 @@ export async function recordBalance(
   automationSol: number,
   claimableSol: number,
   claimableOrb: number,
-  stakedOrb: number
+  stakedOrb: number,
+  orbPriceUsd: number = 0
 ): Promise<void> {
   const sql = `
-    INSERT INTO balances (timestamp, wallet_sol, wallet_orb, automation_sol, claimable_sol, claimable_orb, staked_orb)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO balances (timestamp, wallet_sol, wallet_orb, automation_sol, claimable_sol, claimable_orb, staked_orb, orb_price_usd)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
   const params = [
@@ -275,6 +370,7 @@ export async function recordBalance(
     claimableSol,
     claimableOrb,
     stakedOrb,
+    orbPriceUsd,
   ];
 
   await runQuery(sql, params);
@@ -769,5 +865,244 @@ export async function getImprovedPnLSummary(
     roundsParticipated: summary.roundsParticipated,
     totalDeployTxCount,
     orbPriceInSol,
+  };
+}
+
+// ============================================================================
+// In-Flight Deployment Tracking Functions
+// ============================================================================
+
+export interface InFlightDeployment {
+  id?: number;
+  roundId: number;
+  solAmount: number;
+  timestamp: number;
+  resolved: boolean;
+}
+
+/**
+ * Record a new in-flight deployment (deployment awaiting rewards)
+ */
+export async function recordInFlightDeployment(roundId: number, solAmount: number): Promise<void> {
+  const sql = `
+    INSERT INTO in_flight_deployments (round_id, sol_amount, timestamp, resolved)
+    VALUES (?, ?, ?, 0)
+  `;
+
+  const params = [roundId, solAmount, Date.now()];
+  await runQuery(sql, params);
+  logger.debug(`Recorded in-flight deployment: Round ${roundId}, ${solAmount} SOL`);
+}
+
+/**
+ * Get all unresolved in-flight deployments
+ */
+export async function getUnresolvedInFlightDeployments(): Promise<InFlightDeployment[]> {
+  const sql = `
+    SELECT id, round_id as roundId, sol_amount as solAmount, timestamp, resolved
+    FROM in_flight_deployments
+    WHERE resolved = 0
+    ORDER BY timestamp ASC
+  `;
+
+  const rows = await allQuery<any>(sql);
+  return rows.map(row => ({
+    id: row.id,
+    roundId: row.roundId,
+    solAmount: row.solAmount,
+    timestamp: row.timestamp,
+    resolved: row.resolved === 1,
+  }));
+}
+
+/**
+ * Mark in-flight deployments as resolved (rewards claimed)
+ */
+export async function resolveInFlightDeployments(roundIds: number[]): Promise<void> {
+  if (roundIds.length === 0) return;
+
+  const placeholders = roundIds.map(() => '?').join(',');
+  const sql = `
+    UPDATE in_flight_deployments
+    SET resolved = 1
+    WHERE round_id IN (${placeholders})
+  `;
+
+  await runQuery(sql, roundIds);
+  logger.debug(`Resolved in-flight deployments for rounds: ${roundIds.join(', ')}`);
+}
+
+/**
+ * Clean up old in-flight deployments (older than 10 minutes or 5 rounds)
+ * These are likely orphaned due to rewards appearing on-chain
+ */
+export async function cleanupOldInFlightDeployments(): Promise<void> {
+  const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
+
+  const sql = `
+    UPDATE in_flight_deployments
+    SET resolved = 1
+    WHERE resolved = 0 AND timestamp < ?
+  `;
+
+  await runQuery(sql, [tenMinutesAgo]);
+  logger.debug('Cleaned up old in-flight deployments');
+}
+
+/**
+ * Get total SOL in unresolved in-flight deployments
+ */
+export async function getTotalInFlightSol(): Promise<number> {
+  const result = await getQuery<{ total: number }>(`
+    SELECT COALESCE(SUM(sol_amount), 0) as total
+    FROM in_flight_deployments
+    WHERE resolved = 0
+  `);
+
+  return result?.total || 0;
+}
+
+// ============================================================================
+// Motherload Tracking Functions
+// ============================================================================
+
+export interface MotherloadRecord {
+  id?: number;
+  timestamp: number;
+  motherload: number;
+  roundId?: number;
+}
+
+/**
+ * Record motherload value at a point in time
+ */
+export async function recordMotherload(motherload: number, roundId?: number): Promise<void> {
+  const sql = `
+    INSERT INTO motherload_history (timestamp, motherload, round_id)
+    VALUES (?, ?, ?)
+  `;
+
+  const params = [Date.now(), motherload, roundId || null];
+  await runQuery(sql, params);
+  logger.debug(`Recorded motherload: ${motherload} ORB (Round ${roundId || 'N/A'})`);
+}
+
+/**
+ * Get motherload history for a time period
+ */
+export async function getMotherloadHistory(
+  limit: number = 100,
+  startTimestamp?: number,
+  endTimestamp?: number
+): Promise<MotherloadRecord[]> {
+  let whereConditions = [];
+  let params: any[] = [];
+
+  if (startTimestamp) {
+    whereConditions.push('timestamp >= ?');
+    params.push(startTimestamp);
+  }
+
+  if (endTimestamp) {
+    whereConditions.push('timestamp <= ?');
+    params.push(endTimestamp);
+  }
+
+  const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+  const sql = `
+    SELECT id, timestamp, motherload, round_id as roundId
+    FROM motherload_history
+    ${whereClause}
+    ORDER BY timestamp DESC
+    LIMIT ?
+  `;
+
+  params.push(limit);
+
+  const rows = await allQuery<any>(sql, params);
+  return rows.map(row => ({
+    id: row.id,
+    timestamp: row.timestamp,
+    motherload: row.motherload,
+    roundId: row.roundId,
+  }));
+}
+
+/**
+ * Get latest motherload value
+ */
+export async function getLatestMotherload(): Promise<MotherloadRecord | null> {
+  const sql = `
+    SELECT id, timestamp, motherload, round_id as roundId
+    FROM motherload_history
+    ORDER BY timestamp DESC
+    LIMIT 1
+  `;
+
+  const row = await getQuery<any>(sql);
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    timestamp: row.timestamp,
+    motherload: row.motherload,
+    roundId: row.roundId,
+  };
+}
+
+/**
+ * Get motherload statistics for a time period
+ */
+export async function getMotherloadStats(
+  startTimestamp?: number,
+  endTimestamp?: number
+): Promise<{
+  min: number;
+  max: number;
+  avg: number;
+  current: number;
+  count: number;
+}> {
+  let whereConditions = [];
+  let params: any[] = [];
+
+  if (startTimestamp) {
+    whereConditions.push('timestamp >= ?');
+    params.push(startTimestamp);
+  }
+
+  if (endTimestamp) {
+    whereConditions.push('timestamp <= ?');
+    params.push(endTimestamp);
+  }
+
+  const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+  const sql = `
+    SELECT
+      MIN(motherload) as min,
+      MAX(motherload) as max,
+      AVG(motherload) as avg,
+      COUNT(*) as count
+    FROM motherload_history
+    ${whereClause}
+  `;
+
+  const stats = await getQuery<{
+    min: number;
+    max: number;
+    avg: number;
+    count: number;
+  }>(sql, params);
+
+  const latest = await getLatestMotherload();
+
+  return {
+    min: stats?.min || 0,
+    max: stats?.max || 0,
+    avg: stats?.avg || 0,
+    current: latest?.motherload || 0,
+    count: stats?.count || 0,
   };
 }

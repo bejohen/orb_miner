@@ -14,6 +14,12 @@ export enum FeeLevel {
   VeryHigh = 'veryHigh' // Guaranteed fast landing
 }
 
+interface HeliusFeeResponse {
+  result?: {
+    priorityFeeEstimate?: number;
+  };
+}
+
 export interface FeeEstimate {
   computeUnitPrice: number;    // Micro-lamports per compute unit
   computeUnitLimit: number;    // Max compute units for transaction
@@ -65,7 +71,7 @@ async function detectRpcCapabilities(connection: Connection): Promise<RpcCapabil
       }),
     });
 
-    const data = await response.json();
+    const data = await response.json() as HeliusFeeResponse;
     if (data.result?.priorityFeeEstimate !== undefined) {
       capabilities.supportsHeliusFees = true;
       logger.info('✅ RPC supports Helius-style getPriorityFeeEstimate');
@@ -125,7 +131,7 @@ async function getHeliusPriorityFee(
       }),
     });
 
-    const data = await response.json();
+    const data = await response.json() as HeliusFeeResponse;
     const estimate = data.result?.priorityFeeEstimate;
 
     if (typeof estimate === 'number' && estimate > 0) {

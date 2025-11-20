@@ -20,10 +20,12 @@ import {
 } from '../utils/program';
 import { getConnection, getCurrentSlot } from '../utils/solana';
 import { swapOrbToSol, getOrbPrice } from '../utils/jupiter';
-import { config } from '../utils/config';
+import { loadAndCacheConfig, refreshConfig, config } from '../utils/config';
+import { isSetupNeeded } from '../utils/setupWizard';
 import { sleep } from '../utils/retry';
 import { TransactionInstruction, SystemProgram, PublicKey } from '@solana/web3.js';
 import BN from 'bn.js';
+import { exec } from 'child_process';
 import logger, { ui } from '../utils/logger';
 import {
   initializeDatabase,
@@ -32,8 +34,18 @@ import {
   recordRound,
   recordBalance,
   recordPrice,
-  getQuickPnLSnapshot
+  recordInFlightDeployment,
+  cleanupOldInFlightDeployments,
+  getBaselineBalance,
+  setBaselineBalance,
+  recordMotherload,
 } from '../utils/database';
+import {
+  getCompletePnLSummary,
+  formatSol,
+  formatOrb,
+  formatPercent,
+} from '../utils/pnl';
 import { loadState, saveState, clearState } from '../utils/state';
 
 /**
@@ -49,39 +61,8 @@ import { loadState, saveState, clearState } from '../utils/state';
  * Fully autonomous, threshold-driven operation.
  */
 
-// Track recent deployments that haven't shown up in on-chain rewards yet
+// In-flight deployments now tracked in database (see database.ts)
 // This prevents PnL swings from on-chain reward lag (rewards appear 1-2 rounds after deployment)
-interface InFlightDeployment {
-  roundId: number;
-  solAmount: number;
-  timestamp: number;
-}
-let inFlightDeployments: InFlightDeployment[] = [];
-
-/**
- * Clean up old in-flight deployments
- * Removes deployments older than 5 minutes (rewards should appear by then)
- * Or deployments more than 3 rounds old
- */
-function cleanupInFlightDeployments(currentRoundId?: number): void {
-  const now = Date.now();
-  const maxAge = 5 * 60 * 1000; // 5 minutes
-  const maxRoundDiff = 3; // Remove if 3+ rounds ago
-
-  const before = inFlightDeployments.length;
-  inFlightDeployments = inFlightDeployments.filter(d => {
-    const age = now - d.timestamp;
-    const roundDiff = currentRoundId ? currentRoundId - d.roundId : 0;
-
-    // Keep if less than 5 minutes old AND less than 3 rounds old
-    return age < maxAge && roundDiff < maxRoundDiff;
-  });
-
-  const removed = before - inFlightDeployments.length;
-  if (removed > 0) {
-    logger.debug(`Cleaned up ${removed} old in-flight deployment(s)`);
-  }
-}
 
 let isRunning = true;
 let signalHandlersRegistered = false;
@@ -426,12 +407,16 @@ async function autoSetupAutomation(): Promise<boolean> {
 
     // Record automation setup in database
     try {
+      const { priceInUsd: orbPriceUsd } = await getOrbPrice();
+
       await recordTransaction({
         type: 'automation_setup',
         signature,
         solAmount: deposit,
         status: 'success',
         notes: `Setup with ${targetRounds} rounds @ ${solPerRound.toFixed(4)} SOL/round (motherload: ${motherloadOrb.toFixed(2)} ORB)`,
+        orbPriceUsd,
+        txFeeSol: 0.005, // Estimated setup transaction fee
       });
     } catch (error) {
       logger.error('Failed to record automation setup:', error);
@@ -446,17 +431,19 @@ async function autoSetupAutomation(): Promise<boolean> {
 
 
 /**
- * Display quick PnL preview with current balances
+ * Display unified PnL summary (live bot display)
+ *
+ * Shows current profit/loss using the unified PnL system.
+ * Wallet balance as source of truth: Starting Balance → Current Balance = Profit
  *
  * @param automationBalance - Current automation account balance in SOL
  * @param claimableSol - Pending claimable SOL rewards
  * @param claimableOrb - Pending claimable ORB rewards
  * @param walletOrb - Current wallet ORB balance
+ * @param stakedOrb - Currently staked ORB balance
  *
- * Uses the same calculation logic as the full PnL report for consistency.
- * Tracks in-flight deployments (spent but rewards not visible yet) and displays
- * them separately for informational purposes. In-flight SOL is NOT added to current
- * value since it has already been spent from the automation account.
+ * Uses unified PnL module (src/utils/pnl.ts) for consistent calculations.
+ * In-flight deployments tracked in database for accuracy.
  */
 async function displayQuickPnL(
   automationBalance: number,
@@ -466,51 +453,70 @@ async function displayQuickPnL(
   stakedOrb: number
 ): Promise<void> {
   try {
-    // Calculate total in-flight SOL (deployments not yet reflected on-chain)
-    const inFlightSol = inFlightDeployments.reduce((sum, d) => sum + d.solAmount, 0);
-    const inFlightCount = inFlightDeployments.length;
+    // Get wallet balance for unified PnL
+    const balances = await getBalances();
 
-    const pnl = await getQuickPnLSnapshot(
+    // Get ORB price
+    const { priceInUsd: orbPriceUsd, priceInSol: orbPriceSol } = await getOrbPrice();
+    const solPriceUsd = orbPriceUsd / orbPriceSol; // Derive SOL price from ORB price
+
+    // Get complete PnL summary using unified system
+    const pnl = await getCompletePnLSummary(
+      balances.sol,
       automationBalance,
-      claimableSol, // Use raw value (don't add in-flight - it's already spent!)
-      claimableOrb,
+      claimableSol,
       walletOrb,
-      stakedOrb
+      claimableOrb,
+      stakedOrb,
+      orbPriceSol,
+      solPriceUsd
     );
 
-    // Calculate ROI
-    const roi = pnl.totalDeployedSol > 0 ? (pnl.netSolPnl / pnl.totalDeployedSol) * 100 : 0;
-    const pnlColor = pnl.netSolPnl >= 0 ? '✅' : '❌';
+    // Display unified PnL
+    logger.info('═══════════════════════════════════════════════');
+    logger.info('                 📊 PROFIT & LOSS              ');
+    logger.info('═══════════════════════════════════════════════');
 
-    // Calculate total current value for verification
-    const totalCurrentValue = pnl.totalClaimedSol + pnl.totalSwappedSol + automationBalance + claimableSol;
+    // Main PnL (wallet balance as source of truth)
+    const pnlEmoji = pnl.summary.isProfitable ? '✅' : '❌';
+    const profitSign = pnl.summary.netProfit >= 0 ? '+' : '';
+    logger.info(`💰 Net Profit: ${pnlEmoji} ${profitSign}${formatSol(pnl.summary.netProfit)} SOL (${formatPercent(pnl.summary.roi)})`);
+    logger.info(`   Starting: ${formatSol(pnl.truePnL.startingBalance)} SOL → Current: ${formatSol(pnl.truePnL.currentBalance)} SOL`);
 
-    // Display compact PnL summary with full calculation breakdown
-    logger.info('───────────────────────────────────────────────');
-    logger.info(`💰 Net PnL: ${pnlColor} ${pnl.netSolPnl >= 0 ? '+' : ''}${pnl.netSolPnl.toFixed(4)} SOL (${roi >= 0 ? '+' : ''}${roi.toFixed(1)}% ROI)`);
-    logger.info(`📊 Capital Deployed: ${pnl.totalDeployedSol.toFixed(4)} SOL (automation setup only)`);
-    logger.info(`📈 Current Value: ${totalCurrentValue.toFixed(4)} SOL`);
-    logger.info(`   = ${pnl.totalClaimedSol.toFixed(4)} claimed + ${pnl.totalSwappedSol.toFixed(4)} swapped + ${automationBalance.toFixed(4)} automation + ${claimableSol.toFixed(4)} pending`);
-
-    // Show in-flight as informational (not included in current value since it's already spent)
-    if (inFlightCount > 0) {
-      logger.info(`⏳ In-Flight: ${inFlightSol.toFixed(4)} SOL (${inFlightCount} round${inFlightCount > 1 ? 's' : ''} waiting for rewards)`);
+    if (!pnl.truePnL.hasBaseline) {
+      logger.info(`   ⚠️  No baseline set - profit calculated from earliest snapshot`);
     }
 
-    // Calculate current ORB holdings (what you have now)
-    const currentOrbHoldings = claimableOrb + walletOrb + stakedOrb;
+    // Current Holdings
+    logger.info('');
+    logger.info('📈 Current Holdings:');
+    logger.info(`   SOL: ${formatSol(pnl.truePnL.holdings.totalSol)} (wallet: ${formatSol(balances.sol)}, automation: ${formatSol(automationBalance)}, claimable: ${formatSol(claimableSol)})`);
+    logger.info(`   ORB: ${formatOrb(pnl.truePnL.holdings.totalOrb)} = ${formatSol(pnl.truePnL.holdings.orbValueSol)} SOL @ $${orbPriceUsd.toFixed(2)}/ORB`);
 
-    logger.info(`🪙 ORB Balance: ${currentOrbHoldings.toFixed(2)} ORB`);
-    logger.info(`   = ${claimableOrb.toFixed(2)} pending + ${walletOrb.toFixed(2)} wallet + ${stakedOrb.toFixed(2)} staked`);
-
-    // Show swaps separately (this ORB was sold and converted to SOL)
-    if (pnl.totalSwappedOrb > 0) {
-      logger.info(`💱 ORB Sold: ${pnl.totalSwappedOrb.toFixed(2)} ORB → ${pnl.totalSwappedSol.toFixed(4)} SOL (included in SOL PnL above)`);
+    // Income & Expenses Breakdown
+    logger.info('');
+    logger.info('💵 Income:');
+    logger.info(`   Mining: ${formatSol(pnl.breakdown.income.solFromMining)} SOL + ${formatOrb(pnl.breakdown.income.orbFromMining)} ORB`);
+    if (pnl.breakdown.income.solFromSwaps > 0) {
+      logger.info(`   Swaps: ${formatSol(pnl.breakdown.income.solFromSwaps)} SOL (sold ${formatOrb(pnl.breakdown.income.orbSwappedCount)} ORB)`);
     }
+    logger.info(`   Total: ${formatSol(pnl.breakdown.income.totalSolIncome)} SOL`);
 
-    logger.info('───────────────────────────────────────────────');
+    logger.info('');
+    logger.info('💸 Expenses:');
+    logger.info(`   Transaction Fees: ${formatSol(pnl.breakdown.expenses.transactionFees)} SOL`);
+    logger.info(`   Protocol Fees: ${formatSol(pnl.breakdown.expenses.protocolFees)} SOL (10% deploy fee)`);
+    logger.info(`   Dev Fees: ${formatSol(pnl.breakdown.expenses.devFees)} SOL (0.5%)`);
+    logger.info(`   Total Fees: ${formatSol(pnl.breakdown.expenses.totalExpenses)} SOL`);
+    logger.info(`   Capital Deployed: ${formatSol(pnl.breakdown.expenses.deployedSol)} SOL (in automation account)`);
+
+    // Stats
+    logger.info('');
+    logger.info(`📊 Activity: ${pnl.breakdown.stats.roundsParticipated} rounds, ${pnl.breakdown.stats.totalDeployments} deployments, ${pnl.breakdown.stats.totalClaims} claims`);
+
+    logger.info('═══════════════════════════════════════════════');
   } catch (error) {
-    logger.debug('Failed to display quick PnL:', error);
+    logger.debug('Failed to display unified PnL:', error);
     // Don't throw - this is non-critical
   }
 }
@@ -533,22 +539,25 @@ async function captureBalanceSnapshot(): Promise<void> {
     const stake = await fetchStake(wallet.publicKey);
     const automationInfo = await getAutomationInfo();
 
+    // Get ORB price for snapshot
+    const { priceInUsd: orbPriceUsd, priceInSol: orbPriceSol } = await getOrbPrice();
+
     await recordBalance(
       balances.sol,
       balances.orb,
       automationInfo ? automationInfo.balance / 1e9 : 0,
       miner ? Number(miner.rewardsSol) / 1e9 : 0,
       miner ? Number(miner.rewardsOre) / 1e9 : 0,
-      stake ? Number(stake.balance) / 1e9 : 0
+      stake ? Number(stake.balance) / 1e9 : 0,
+      orbPriceUsd // Include ORB price in balance snapshot
     );
 
-    // Also capture ORB price
-    const { priceInUsd, priceInSol } = await getOrbPrice();
-    if (priceInUsd > 0 && priceInSol > 0) {
-      await recordPrice(priceInUsd, priceInSol);
+    // Also record in prices table
+    if (orbPriceUsd > 0 && orbPriceSol > 0) {
+      await recordPrice(orbPriceUsd, orbPriceSol);
     }
 
-    logger.debug('Captured balance snapshot');
+    logger.debug('Captured balance snapshot with ORB price');
   } catch (error) {
     logger.error('Failed to capture balance snapshot:', error);
   }
@@ -646,6 +655,9 @@ async function autoClaimMiningRewards(): Promise<void> {
 
           logger.debug(`Actual claimed: ${actualSolClaimed.toFixed(4)} SOL, ${actualOrbClaimed.toFixed(4)} ORB`);
 
+          // Get ORB price for transaction record
+          const { priceInUsd: orbPriceUsd } = await getOrbPrice();
+
           // Record only if actually claimed (> 0)
           if (actualSolClaimed > 0.0001) {
             await recordTransaction({
@@ -654,6 +666,8 @@ async function autoClaimMiningRewards(): Promise<void> {
               solAmount: actualSolClaimed,
               status: 'success',
               notes: 'Mining rewards',
+              orbPriceUsd,
+              txFeeSol: 0.0005, // Estimated claim transaction fee
             });
           }
 
@@ -664,6 +678,8 @@ async function autoClaimMiningRewards(): Promise<void> {
               orbAmount: actualOrbClaimed,
               status: 'success',
               notes: 'Mining rewards',
+              orbPriceUsd,
+              txFeeSol: 0.0005, // Estimated claim transaction fee
             });
           }
         }
@@ -671,8 +687,8 @@ async function autoClaimMiningRewards(): Promise<void> {
         logger.error('Failed to record claim:', error);
       }
 
-      // Cleanup in-flight deployments since on-chain state just updated
-      cleanupInFlightDeployments();
+      // Cleanup old in-flight deployments (rewards have now appeared on-chain)
+      await cleanupOldInFlightDeployments();
     }
   } catch (error) {
     logger.error('Auto-claim mining rewards failed:', error);
@@ -681,6 +697,8 @@ async function autoClaimMiningRewards(): Promise<void> {
 
 /**
  * Auto-claim staking rewards: Check and claim staking rewards when thresholds are met
+ *
+ * Uses Treasury stake rewards factor to calculate accrued rewards for more accurate detection.
  */
 async function autoClaimStakingRewards(): Promise<void> {
   try {
@@ -697,10 +715,34 @@ async function autoClaimStakingRewards(): Promise<void> {
     const stakeBefore = await fetchStake(wallet.publicKey);
     if (stakeBefore) {
       const stakedAmount = Number(stakeBefore.balance) / 1e9;
-      const stakingOrbBefore = Number(stakeBefore.rewardsOre) / 1e9;
 
-      if (stakedAmount > 0 && stakingOrbBefore >= config.autoClaimStakingOrbThreshold && !config.dryRun) {
-        logger.debug(`Staking: ${stakedAmount.toFixed(2)} ORB staked, ${stakingOrbBefore.toFixed(4)} ORB claimable`);
+      // Get REALIZED claimable rewards from Stake account
+      const realizedOrbRewards = Number(stakeBefore.rewardsOre) / 1e9;
+
+      // Get ACCRUED rewards using Treasury factor (more accurate)
+      let accruedOrbRewards = 0;
+      try {
+        const treasury = await fetchTreasury();
+        const { calculateAccruedStakingRewards } = await import('../utils/accounts');
+
+        const accruedLamports = calculateAccruedStakingRewards(
+          treasury.stakeRewardsFactor,
+          stakeBefore.rewardsFactor,
+          stakeBefore.balance
+        );
+        accruedOrbRewards = Number(accruedLamports) / 1e9;
+
+        logger.debug(`Staking rewards - Realized: ${realizedOrbRewards.toFixed(4)} ORB, Accrued: ${accruedOrbRewards.toFixed(4)} ORB`);
+      } catch (error) {
+        logger.debug('Could not calculate accrued staking rewards, using realized amount only');
+        accruedOrbRewards = realizedOrbRewards;
+      }
+
+      // Use the higher of realized or accrued rewards for claiming
+      const claimableOrbRewards = Math.max(realizedOrbRewards, accruedOrbRewards);
+
+      if (stakedAmount > 0 && claimableOrbRewards >= config.autoClaimStakingOrbThreshold && !config.dryRun) {
+        logger.debug(`Staking: ${stakedAmount.toFixed(2)} ORB staked, ${claimableOrbRewards.toFixed(4)} ORB claimable (realized: ${realizedOrbRewards.toFixed(4)}, accrued: ${accruedOrbRewards.toFixed(4)})`);
 
         try {
           const claimInstruction = await buildClaimYieldInstruction(config.autoClaimStakingOrbThreshold);
@@ -716,7 +758,7 @@ async function autoClaimStakingRewards(): Promise<void> {
             const stakeAfter = await fetchStake(wallet.publicKey);
             if (stakeAfter) {
               const stakingOrbAfter = Number(stakeAfter.rewardsOre) / 1e9;
-              const actualOrbClaimed = stakingOrbBefore - stakingOrbAfter;
+              const actualOrbClaimed = realizedOrbRewards - stakingOrbAfter;
 
               logger.debug(`Actual staking rewards claimed: ${actualOrbClaimed.toFixed(4)} ORB`);
 
@@ -839,12 +881,16 @@ async function restartAutomationForScaling(): Promise<boolean> {
 
     // Record automation close with returned SOL amount
     try {
+      const { priceInUsd: orbPriceUsd } = await getOrbPrice();
+
       await recordTransaction({
         type: 'automation_close',
         signature: closeSig,
         solAmount: returnedSol,
         status: 'success',
         notes: `Closed for dynamic scaling - returned ${returnedSol.toFixed(4)} SOL to wallet`,
+        orbPriceUsd,
+        txFeeSol: 0.0005, // Estimated close transaction fee
       });
     } catch (error) {
       logger.error('Failed to record automation close:', error);
@@ -927,6 +973,9 @@ async function autoSellOrb(): Promise<void> {
 
       // Record swap transaction
       try {
+        // Get ORB price at time of swap
+        const { priceInUsd: orbPriceUsd } = await getOrbPrice();
+
         await recordTransaction({
           type: 'swap',
           signature: result.signature,
@@ -934,6 +983,8 @@ async function autoSellOrb(): Promise<void> {
           solAmount: result.solReceived,
           status: 'success',
           notes: `Swapped ORB to SOL (proactive selling)`,
+          orbPriceUsd,
+          txFeeSol: 0.001, // Estimated swap transaction fee
         });
       } catch (error) {
         logger.error('Failed to record swap:', error);
@@ -943,11 +994,14 @@ async function autoSellOrb(): Promise<void> {
 
       // Record failed swap
       try {
+        const { priceInUsd: orbPriceUsd } = await getOrbPrice();
+
         await recordTransaction({
           type: 'swap',
           orbAmount: orbToSwap,
           status: 'failed',
           notes: 'Swap failed - check logs for details',
+          orbPriceUsd,
         });
       } catch (error) {
         logger.error('Failed to record failed swap:', error);
@@ -1004,7 +1058,7 @@ async function autoStakeOrb(): Promise<void> {
         return;
       }
 
-      const instruction = await buildStakeInstruction(stakeAmount);
+      const instruction = buildStakeInstruction(stakeAmount);
       const signature = await sendAndConfirmTransaction([instruction], 'Auto-Stake');
       ui.success(`Staked ${stakeAmount.toFixed(2)} ORB`);
       logger.debug(`Transaction: ${signature}`);
@@ -1171,6 +1225,13 @@ async function autoMineRound(automationInfo: any): Promise<boolean> {
       const treasury = await fetchTreasury();
       const motherloadOrb = Number(treasury.motherlode) / 1e9;
 
+      // Get ORB price for transaction record
+      const { priceInUsd: orbPriceUsd } = await getOrbPrice();
+
+      // Calculate fees
+      const protocolFee = solPerRound * 0.10; // 10% protocol fee per deployment
+      const estimatedTxFee = 0.0085; // Estimated transaction fee
+
       await recordTransaction({
         type: 'deploy',
         signature,
@@ -1178,6 +1239,9 @@ async function autoMineRound(automationInfo: any): Promise<boolean> {
         solAmount: solPerRound,
         status: 'success',
         notes: `Deployed to 25 squares (motherload: ${motherloadOrb.toFixed(2)} ORB)`,
+        orbPriceUsd,
+        txFeeSol: estimatedTxFee,
+        protocolFeeSol: protocolFee,
       });
 
       await recordRound(
@@ -1190,11 +1254,7 @@ async function autoMineRound(automationInfo: any): Promise<boolean> {
       );
 
       // Track deployment as in-flight (will show up in rewards 1-2 rounds later)
-      inFlightDeployments.push({
-        roundId: board.roundId.toNumber(),
-        solAmount: solPerRound,
-        timestamp: Date.now(),
-      });
+      await recordInFlightDeployment(board.roundId.toNumber(), solPerRound);
       logger.debug(`Added in-flight deployment: ${solPerRound.toFixed(4)} SOL for round ${board.roundId.toNumber()}`);
     } catch (error) {
       logger.error('Failed to record deployment:', error);
@@ -1283,9 +1343,111 @@ export async function smartBotCommand(): Promise<void> {
     ui.info('Initializing profit tracking database...');
     await initializeDatabase();
 
+    // Load configuration from database (with default initialization)
+    ui.info('Loading configuration from database...');
+    let config = await loadAndCacheConfig();
+
+    // Check if first-run setup is needed
+    if (isSetupNeeded(config.privateKey)) {
+      ui.blank();
+      ui.header('🚀 FIRST-TIME SETUP REQUIRED');
+      ui.blank();
+      ui.error('PRIVATE_KEY not configured!');
+      ui.blank();
+      ui.info('Opening setup wizard in your browser...');
+
+      // Open browser automatically (cross-platform) and wait for it
+      const setupUrl = 'http://localhost:3000/setup';
+      const openCommand = process.platform === 'win32'
+        ? `start ${setupUrl}`
+        : process.platform === 'darwin'
+        ? `open ${setupUrl}`
+        : `xdg-open ${setupUrl}`;
+
+      await new Promise<void>((resolve) => {
+        exec(openCommand, (error) => {
+          if (error) {
+            ui.warning('Could not open browser automatically');
+            ui.info('Please manually open: http://localhost:3000/setup');
+          } else {
+            ui.success('✓ Browser opened to setup page');
+          }
+          // Always resolve to continue
+          setTimeout(resolve, 500);
+        });
+      });
+
+      ui.blank();
+      ui.info('The setup wizard will guide you through:');
+      ui.info('  • Wallet Private Key (encrypted & secure)');
+      ui.info('  • RPC Endpoint (optional, has default)');
+      ui.blank();
+      ui.warning('Once setup is complete, restart the bot with: npm run start:bot');
+      ui.blank();
+
+      throw new Error('Setup required - visit http://localhost:3000/setup');
+    }
+
+    ui.success('Configuration loaded successfully');
+    ui.blank();
+
     ui.header('🤖 ORB MINING BOT - AUTONOMOUS MODE');
     ui.info('Fully automated mining • Press Ctrl+C to stop');
     ui.blank();
+
+    // Check and set baseline if needed
+    const baselineBalance = await getBaselineBalance();
+    if (baselineBalance === 0) {
+      ui.section('BASELINE SETUP');
+      ui.info('No baseline found - setting current total value as starting point');
+
+      const wallet = getWallet();
+      const walletPublicKey = new PublicKey(wallet.publicKey.toBase58());
+
+      // Get all current balances
+      const walletBalances = await getBalances(walletPublicKey);
+      const miner = await fetchMiner(walletPublicKey).catch(() => null);
+      const stake = await fetchStake(walletPublicKey).catch(() => null);
+
+      // Get automation balance if exists
+      let automationSol = 0;
+      try {
+        const [automationPDA] = getAutomationPDA(walletPublicKey);
+        const connection = getConnection();
+        const automationAccountInfo = await connection.getAccountInfo(automationPDA);
+        if (automationAccountInfo) {
+          automationSol = automationAccountInfo.lamports / 1e9;
+        }
+      } catch (error) {
+        // No automation account yet
+      }
+
+      // Get claimable balances
+      const claimableSol = miner ? Number(miner.rewardsSol) / 1e9 : 0;
+      const claimableOrb = miner ? Number(miner.rewardsOre) / 1e9 : 0;
+      const stakedOrb = stake ? Number(stake.balance) / 1e9 : 0;
+
+      // Calculate total starting value (ONLY SOL - ORB only counts as profit when sold)
+      const totalSol = walletBalances.sol + automationSol + claimableSol;
+      const botOrb = walletBalances.orb + claimableOrb; // Bot ORB only (no staked)
+      const totalStartingValue = totalSol; // Only SOL, ORB is profit when sold
+
+      await setBaselineBalance(totalStartingValue);
+      ui.success(`Baseline set: ${totalStartingValue.toFixed(4)} SOL (realized value only)`);
+      ui.info(`  - SOL: ${totalSol.toFixed(4)} (wallet: ${walletBalances.sol.toFixed(4)}, automation: ${automationSol.toFixed(4)}, claimable: ${claimableSol.toFixed(4)})`);
+      if (botOrb > 0) {
+        ui.info(`  - Bot ORB: ${botOrb.toFixed(2)} (unrealized, becomes profit when swapped)`);
+      }
+      if (stakedOrb > 0) {
+        ui.info(`  - Staked ORB: ${stakedOrb.toFixed(2)} (excluded from PnL)`);
+      }
+      ui.info('PnL tracks SOL only - ORB becomes profit when you swap it to SOL');
+      ui.blank();
+    } else {
+      ui.section('BASELINE');
+      ui.status('Starting Balance', `${baselineBalance.toFixed(4)} SOL`);
+      ui.blank();
+    }
 
     ui.section('BOT CONFIGURATION');
     ui.status('Motherload Threshold', `${config.motherloadThreshold} ORB`);
@@ -1295,38 +1457,7 @@ export async function smartBotCommand(): Promise<void> {
     ui.status('Auto-Stake', config.autoStakeEnabled ? 'Enabled' : 'Disabled');
     ui.blank();
 
-    // Quick startup reconciliation check
-    try {
-      const pnl = await getQuickPnLSnapshot();
-      const automationInfo = await getAutomationInfo();
-
-      // Warn if automation exists but not recorded in database
-      if (automationInfo && automationInfo.balance > 0 && pnl.totalDeployedSol === 0) {
-        ui.warning('ℹ️  PnL Tracking Notice:');
-        ui.warning(`   Automation account has ${automationInfo.balance.toFixed(4)} SOL but no setup recorded in database`);
-        ui.warning('   This usually means the database was reset or corrupted.');
-        ui.warning('   PnL will treat automation balance as previously deployed capital (not profit).');
-        ui.warning('   Run: npx ts-node scripts/reconcile-pnl.ts to investigate history');
-        ui.blank();
-      }
-
-      // Warn if negative PnL is significant (likely tracking issue)
-      const automationBalance = automationInfo?.balance || 0;
-      const currentValue = pnl.totalClaimedSol + pnl.totalSwappedSol + automationBalance;
-      const netPnL = currentValue - pnl.totalDeployedSol;
-      const lossPercent = pnl.totalDeployedSol > 0 ? (netPnL / pnl.totalDeployedSol) * 100 : 0;
-
-      if (netPnL < -0.5 && lossPercent < -30) {
-        ui.warning('⚠️  Large PnL Loss Detected:');
-        ui.warning(`   Net PnL: ${netPnL.toFixed(4)} SOL (${lossPercent.toFixed(1)}% loss)`);
-        ui.warning('   This may indicate tracking issues from manual operations.');
-        ui.warning('   Run: npx ts-node scripts/reconcile-pnl.ts to audit');
-        ui.warning('   Or reset: npx ts-node scripts/reset-pnl.ts');
-        ui.blank();
-      }
-    } catch (error) {
-      logger.debug('Startup reconciliation check failed (non-fatal):', error);
-    }
+    // Startup complete - unified PnL system handles reconciliation automatically
 
     ui.info('Bot is now running... Will create automation when motherload >= threshold');
     ui.blank();
@@ -1346,15 +1477,40 @@ export async function smartBotCommand(): Promise<void> {
           ui.section(`ROUND ${currentRoundId}`);
           lastRoundId = currentRoundId;
 
+          // Refresh config from database to pick up any setting changes from dashboard
+          try {
+            config = await refreshConfig();
+            logger.debug('Configuration refreshed from database');
+          } catch (error) {
+            logger.warn('Failed to refresh config, using cached version:', error);
+          }
+
           // Check motherload FIRST - don't create automation if below threshold
           const treasury = await fetchTreasury();
           const currentMotherload = Number(treasury.motherlode) / 1e9;
           logger.debug(`Current motherload: ${currentMotherload.toFixed(2)} ORB (threshold: ${config.motherloadThreshold} ORB)`);
 
-          // If motherload below threshold, skip mining this round
+          // Record motherload for analytics (track continuously, not just when mining)
+          try {
+            await recordMotherload(currentMotherload, board.roundId.toNumber());
+          } catch (error) {
+            logger.debug('Failed to record motherload:', error);
+          }
+
+          // If motherload below threshold, skip automation setup/deployment but still do claims/swaps
           if (currentMotherload < config.motherloadThreshold) {
             ui.info(`⏸️  Motherload (${currentMotherload.toFixed(2)} ORB) below threshold (${config.motherloadThreshold} ORB) - waiting...`);
-            continue; // Skip to next round check
+            ui.info('Still checking for claimable rewards and performing swaps...');
+
+            // Do periodic operations even when not mining
+            await autoClaimMiningRewards();
+            await autoClaimStakingRewards();
+            await autoStakeOrb();
+            await autoSwapCheck();
+            await captureBalanceSnapshot();
+
+            // Skip to next round check (don't create automation or deploy)
+            continue;
           }
 
           // Motherload is above threshold - check/create automation
@@ -1430,12 +1586,16 @@ export async function smartBotCommand(): Promise<void> {
                 // Record automation close
                 try {
                   const returnedSol = updatedInfoAfterDeploy.balance / 1e9;
+                  const { priceInUsd: orbPriceUsd } = await getOrbPrice();
+
                   await recordTransaction({
                     type: 'automation_close',
                     signature: closeSig,
                     solAmount: returnedSol,
                     status: 'success',
                     notes: `Budget depleted - closed for SOL reclaim (returned ${returnedSol.toFixed(6)} SOL)`,
+                    orbPriceUsd,
+                    txFeeSol: 0.0005, // Estimated close transaction fee
                   });
                 } catch (error) {
                   logger.error('Failed to record automation close:', error);
@@ -1475,8 +1635,7 @@ export async function smartBotCommand(): Promise<void> {
             }
 
             // Cleanup old in-flight deployments before displaying PnL
-            const board = await fetchBoard();
-            cleanupInFlightDeployments(board.roundId.toNumber());
+            await cleanupOldInFlightDeployments();
 
             // Display quick PnL preview after each round with current balances
             const currentAutomationBalance = updatedInfo ? updatedInfo.balance / 1e9 : 0;

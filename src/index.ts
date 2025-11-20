@@ -1,8 +1,10 @@
-import { config } from './utils/config';
 import logger from './utils/logger';
 import { smartBotCommand } from './commands/smartBot';
 import { pnlCommand } from './commands/pnl';
 import { setBaselineCommand } from './commands/setBaseline';
+import { initializeDatabase, closeDatabase } from './utils/database';
+import { runQuery, getQuery } from './utils/database';
+import open from 'open';
 
 /**
  * ORB Mining Bot - CLI Entry Point
@@ -11,6 +13,7 @@ import { setBaselineCommand } from './commands/setBaseline';
  * - (no args): Run the smart autonomous bot
  * - pnl: Display profit & loss report
  * - set-baseline [amount]: Set starting wallet balance for PnL tracking
+ * - reset-baseline: Delete existing baseline to set a new one
  */
 
 async function main() {
@@ -31,6 +34,15 @@ async function main() {
       return;
     }
 
+    if (command === 'reset-baseline') {
+      // Reset baseline
+      await initializeDatabase();
+      await runQuery('DELETE FROM transactions WHERE type = ?', ['baseline']);
+      logger.info('✅ Baseline reset successfully. Run the bot again to set a new baseline.');
+      await closeDatabase();
+      return;
+    }
+
     if (command && command !== 'bot') {
       logger.error(`Unknown command: ${command}`);
       logger.info('');
@@ -38,14 +50,17 @@ async function main() {
       logger.info('  (no args)              - Run autonomous mining bot');
       logger.info('  pnl                    - Display profit & loss report');
       logger.info('  set-baseline [amount]  - Set starting wallet balance');
+      logger.info('  reset-baseline         - Delete existing baseline');
       process.exit(1);
     }
 
     // Default: Run the smart autonomous bot
     logger.info('🤖 ORB Mining Bot');
-    logger.info(`Network: ${config.network}`);
-    logger.info(`ORB Program: ${config.orbProgramId.toBase58()}`);
+    logger.info('Loading configuration from database...');
     logger.info('');
+
+    // Open browser to dashboard on startup
+    await openDashboard();
 
     await smartBotCommand();
 
@@ -53,6 +68,34 @@ async function main() {
   } catch (error) {
     logger.error('Command execution failed:', error);
     process.exit(1);
+  }
+}
+
+async function openDashboard() {
+  try {
+    // Initialize database to read port
+    await initializeDatabase();
+
+    // Get dashboard port from database
+    const portRow = await getQuery<{ value: string }>(
+      'SELECT value FROM settings WHERE key = ?',
+      ['DASHBOARD_PORT']
+    );
+
+    const port = portRow?.value || '3888';
+    const url = `http://localhost:${port}`;
+
+    logger.info(`🌐 Opening dashboard at ${url}`);
+    logger.info('');
+
+    // Open browser (don't wait for it to finish)
+    open(url).catch((error) => {
+      logger.warn('Failed to open browser automatically:', error.message);
+      logger.info(`Please open ${url} manually in your browser`);
+    });
+  } catch (error) {
+    logger.warn('Could not auto-open browser:', error);
+    logger.info('Dashboard should be available at http://localhost:3888');
   }
 }
 
