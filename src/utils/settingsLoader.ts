@@ -184,7 +184,7 @@ export async function initializeDefaultSettings(): Promise<void> {
       { key: 'RATE_LIMIT_MS', value: '1000', type: 'number', description: 'Rate limit (ms)' },
       { key: 'INCOGNITO_MODE', value: 'false', type: 'boolean', description: 'Incognito mode (hide sensitive data)' },
       { key: 'DASHBOARD_PASSWORD', value: '', type: 'string', description: 'Dashboard password for remote access (encrypted)', encrypt: false },
-      { key: 'DASHBOARD_PORT', value: '3000', type: 'number', description: 'Dashboard port number' },
+      { key: 'DASHBOARD_PORT', value: '3888', type: 'number', description: 'Dashboard port number' },
     ];
 
     // Insert defaults only if they don't exist

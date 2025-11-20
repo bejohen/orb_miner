@@ -94,7 +94,7 @@ export default function SetupPage() {
       }
 
       // Add dashboard port
-      const port = parseInt(dashboardPort) || 3000;
+      const port = parseInt(dashboardPort) || 3888;
       if (port >= 1024 && port <= 65535) {
         settings.DASHBOARD_PORT = port;
       }
@@ -247,7 +247,7 @@ export default function SetupPage() {
               <Input
                 id="dashboardPort"
                 type="number"
-                placeholder="3000"
+                placeholder="3888"
                 value={dashboardPort}
                 onChange={(e) => setDashboardPort(e.target.value)}
                 min="1024"
@@ -255,7 +255,7 @@ export default function SetupPage() {
                 disabled={loading}
               />
               <p className="text-sm text-muted-foreground">
-                Port number for accessing the dashboard (default: 3000, requires restart to take effect)
+                Port number for accessing the dashboard (default: 3888, requires restart to take effect)
               </p>
             </div>
 

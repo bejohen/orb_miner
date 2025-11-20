@@ -42,8 +42,8 @@ npm start
 
 The bot handles everything: deployments, claims, swaps, and restarts. Press `Ctrl+C` to stop.
 
-**Monitor Dashboard:** [http://localhost:3000](http://localhost:3000)
-**Change Settings:** [http://localhost:3000/settings](http://localhost:3000/settings) _(no restart needed!)_
+**Monitor Dashboard:** [http://localhost:3888](http://localhost:3888)
+**Change Settings:** [http://localhost:3888/settings](http://localhost:3888/settings) _(no restart needed!)_
 
 <details>
 <summary>📋 <b>Detailed Setup Instructions</b></summary>
@@ -142,7 +142,7 @@ The bot handles everything: deployments, claims, swaps, and restarts. Press `Ctr
 # Running
 npm start                  # Start bot + dashboard
 npm run start:bot          # Bot only
-npm run start:dashboard    # Dashboard only (port 3000)
+npm run start:dashboard    # Dashboard only (port 3888)
 
 # Building
 npm run build             # Compile TypeScript bot
@@ -245,7 +245,7 @@ The included `ecosystem.config.js` runs bot and dashboard as separate processes:
 ## 📊 Monitoring
 
 ### Real-Time Dashboard
-Open [http://localhost:3000](http://localhost:3000) when bot is running to see:
+Open [http://localhost:3888](http://localhost:3888) when bot is running to see:
 - Live balances and PnL
 - Recent transactions
 - Round history
@@ -392,7 +392,7 @@ See [FEE_OPTIMIZATION.md](FEE_OPTIMIZATION.md) for details.
 <details>
 <summary><b>Configuration Options</b></summary>
 
-**All settings managed via dashboard** at http://localhost:3000/settings
+**All settings managed via dashboard** at http://localhost:3888/settings
 
 No .env file needed! Key settings:
 
@@ -490,7 +490,7 @@ Set `DRY_RUN=true` in dashboard settings to simulate without real transactions
 
 ## 🧪 Testing Before Real Mining
 
-1. Set `DRY_RUN=true` in dashboard settings (http://localhost:3000/settings)
+1. Set `DRY_RUN=true` in dashboard settings (http://localhost:3888/settings)
 2. Run `npm start`
 3. Bot will simulate all operations without sending real transactions
 
