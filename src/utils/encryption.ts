@@ -1,21 +1,22 @@
 import crypto from 'crypto';
 import os from 'os';
-import path from 'path';
 
 /**
  * Simple encryption/decryption for sensitive settings
- * Uses AES-256-GCM with a key derived from machine hostname and data directory
+ * Uses AES-256-GCM with a key derived from machine hostname and project root
  *
  * NOTE: This provides basic encryption for local storage. The database file
  * itself should be protected with proper file permissions.
  */
 
-// Generate a stable encryption key based on machine hostname and data directory
+// Generate a stable encryption key based on machine hostname
 // This ensures the key is consistent across restarts but unique per installation
+// Note: We use only hostname to ensure consistency between dashboard (runs in dashboard/)
+// and bot (runs in root/) - they have different process.cwd() values
 function generateEncryptionKey(): Buffer {
   const hostname = os.hostname();
-  const dataDir = path.resolve(__dirname, '../../data');
-  const keyMaterial = `orb-miner-${hostname}-${dataDir}`;
+  // Use a fixed salt for this project to ensure consistency
+  const keyMaterial = `orb-miner-encryption-key-${hostname}`;
   return crypto.createHash('sha256').update(keyMaterial).digest();
 }
 

@@ -28,19 +28,22 @@ git clone https://github.com/CryptoGnome/orb_miner.git
 cd orb_miner
 npm run setup
 
-# 2. Configure
-cp .env.example .env
-# Edit .env and add your PRIVATE_KEY
+# 2. Fund wallet with 1-5+ SOL
 
-# 3. Fund wallet with 1-5+ SOL
-
-# 4. Start mining!
+# 3. Start bot + dashboard
 npm start
+
+# 4. Browser opens automatically to setup wizard
+# Enter your PRIVATE_KEY (encrypted & stored securely)
+# Optional: Custom RPC endpoint
+
+# 5. That's it! Mining starts automatically
 ```
 
-That's it! The bot handles everything: deployments, claims, swaps, and restarts. Press `Ctrl+C` to stop.
+The bot handles everything: deployments, claims, swaps, and restarts. Press `Ctrl+C` to stop.
 
 **Monitor Dashboard:** [http://localhost:3000](http://localhost:3000)
+**Change Settings:** [http://localhost:3000/settings](http://localhost:3000/settings) _(no restart needed!)_
 
 <details>
 <summary>📋 <b>Detailed Setup Instructions</b></summary>
@@ -64,28 +67,27 @@ That's it! The bot handles everything: deployments, claims, swaps, and restarts.
    npm run setup  # Installs bot + dashboard dependencies
    ```
 
-3. **Configure wallet**
-   ```bash
-   cp .env.example .env
-   ```
-
-   Edit `.env` and add your private key:
-   ```env
-   PRIVATE_KEY=your_base58_private_key_here
-   ```
-
-   **Export private key from Phantom:** Settings → Show Private Key
-
-4. **Fund wallet**
+3. **Fund wallet**
    - Minimum: 1 SOL (testing)
    - Recommended: 5+ SOL (sustained mining)
 
-5. **Start bot**
+4. **Start bot + dashboard**
    ```bash
    npm start  # Runs bot AND dashboard
    ```
 
-   Or run separately:
+   Browser automatically opens to setup wizard
+
+5. **Complete setup wizard**
+   - Enter your Base58 private key (encrypted with AES-256-GCM)
+   - Optional: Custom RPC endpoint (has default)
+   - Click "Complete Setup"
+
+   **Export private key from Phantom:** Settings → Show Private Key
+
+6. **Bot starts mining automatically!**
+
+   Or run components separately:
    ```bash
    npm run start:bot        # Bot only
    npm run start:dashboard  # Dashboard only
@@ -110,6 +112,8 @@ That's it! The bot handles everything: deployments, claims, swaps, and restarts.
 
 **⚡ Automation**
 - Fully autonomous operation
+- Web-based setup wizard (auto-opens browser)
+- Live settings updates (no restart needed!)
 - Auto-claim rewards (SOL/ORB)
 - Auto-swap ORB → SOL with price floor protection
 - Auto-restart when motherload changes 40-50%+
@@ -122,11 +126,13 @@ That's it! The bot handles everything: deployments, claims, swaps, and restarts.
 - Balance reserves
 - Full transaction transparency
 
-**📊 Monitoring**
+**📊 Monitoring & Management**
 - Next.js 16 dashboard with real-time stats
-- SQLite-based PnL tracking
+- User-friendly settings page (60+ options)
+- SQLite-based configuration & PnL tracking
 - Transaction history
 - Round analytics
+- No .env files needed!
 
 ---
 
@@ -329,41 +335,50 @@ See [FEE_OPTIMIZATION.md](FEE_OPTIMIZATION.md) for details.
 <details>
 <summary><b>Configuration Options</b></summary>
 
-Edit `.env` to customize behavior. Key settings:
+**All settings managed via dashboard** at http://localhost:3000/settings
 
-```env
+No .env file needed! Key settings:
+
+```
 # Mining Thresholds
-MOTHERLOAD_THRESHOLD=100               # Min motherload to mine
-ENABLE_PRODUCTION_COST_CHECK=true     # Gate on EV > 0 (recommended)
-MIN_EXPECTED_VALUE=0                  # Min EV in SOL
+MOTHERLOAD_THRESHOLD: 100               # Min motherload to mine
+ENABLE_PRODUCTION_COST_CHECK: true     # Gate on EV > 0 (recommended)
+MIN_EXPECTED_VALUE: 0                  # Min EV in SOL
 
 # Budget Allocation
-INITIAL_AUTOMATION_BUDGET_PCT=90      # % of wallet SOL for automation
+INITIAL_AUTOMATION_BUDGET_PCT: 90      # % of wallet SOL for automation
 
 # Auto-Claim
-AUTO_CLAIM_SOL_THRESHOLD=0.1          # Claim when >= 0.1 SOL
-AUTO_CLAIM_ORB_THRESHOLD=1.0          # Claim when >= 1.0 ORB
+AUTO_CLAIM_SOL_THRESHOLD: 0.1          # Claim when >= 0.1 SOL
+AUTO_CLAIM_ORB_THRESHOLD: 1.0          # Claim when >= 1.0 ORB
 
 # Auto-Swap
-AUTO_SWAP_ENABLED=true                # Auto-swap ORB → SOL
-WALLET_ORB_SWAP_THRESHOLD=10          # Swap when >= 10 ORB
-MIN_ORB_TO_KEEP=5                     # Keep minimum 5 ORB
-MIN_ORB_PRICE_USD=30                  # Won't sell below $30
+AUTO_SWAP_ENABLED: true                # Auto-swap ORB → SOL
+WALLET_ORB_SWAP_THRESHOLD: 0.1         # Swap when >= 0.1 ORB
+MIN_ORB_PRICE_USD: 30                  # Won't sell below $30
 
 # Auto-Stake (optional)
-AUTO_STAKE_ENABLED=false              # Enable ORB staking
-STAKE_ORB_THRESHOLD=50                # Stake when >= 50 ORB
+AUTO_STAKE_ENABLED: false              # Enable ORB staking
+STAKE_ORB_THRESHOLD: 50                # Stake when >= 50 ORB
 
 # Priority Fees
-PRIORITY_FEE_LEVEL=medium             # low/medium/high/veryHigh
-MIN_PRIORITY_FEE_MICRO_LAMPORTS=100
-MAX_PRIORITY_FEE_MICRO_LAMPORTS=50000
+PRIORITY_FEE_LEVEL: medium             # low/medium/high/veryHigh
+MIN_PRIORITY_FEE_MICRO_LAMPORTS: 100
+MAX_PRIORITY_FEE_MICRO_LAMPORTS: 50000
 
 # Testing
-DRY_RUN=false                         # Simulate without real txs
+DRY_RUN: false                         # Simulate without real txs
 ```
 
-See [.env.example](.env.example) for all options with detailed explanations.
+**Configuration Features:**
+- ✅ Web-based settings editor
+- ✅ AES-256 encryption for sensitive data
+- ✅ **Live updates** - changes take effect without restart!
+- ✅ 60+ configurable settings
+- ✅ Input validation & safety checks
+- ✅ Stored in SQLite database
+
+See dashboard settings page for full list with descriptions.
 
 </details>
 
@@ -392,7 +407,7 @@ Example: Deploy 1 SOL → 0.005 SOL fee (0.5%) + 0.995 SOL for mining
 
 ### "Insufficient funds" error
 - Check wallet balance: `npx ts-node tests/test-query.ts`
-- Lower `INITIAL_AUTOMATION_BUDGET_PCT` in `.env`
+- Lower `INITIAL_AUTOMATION_BUDGET_PCT` in dashboard settings
 - Fund wallet with more SOL
 
 ### Automation account issues
@@ -410,7 +425,7 @@ npx ts-node tests/test-close-automation.ts
 - Tx signatures logged in `logs/transactions.log`
 
 ### Test with dry run
-Set `DRY_RUN=true` in `.env` to simulate without real transactions
+Set `DRY_RUN=true` in dashboard settings to simulate without real transactions
 
 </details>
 
@@ -418,7 +433,7 @@ Set `DRY_RUN=true` in `.env` to simulate without real transactions
 
 ## 🧪 Testing Before Real Mining
 
-1. Set `DRY_RUN=true` in `.env`
+1. Set `DRY_RUN=true` in dashboard settings (http://localhost:3000/settings)
 2. Run `npm start`
 3. Bot will simulate all operations without sending real transactions
 
@@ -431,8 +446,6 @@ npx ts-node tests/test-live-profitability.ts
 
 ## 🔒 Security
 
-> ⚠️ **CRITICAL: Never commit your `.env` file!**
-
 ### Best Practices
 - ✅ **Use a FRESH, dedicated wallet** - Create new wallet specifically for this bot
 - ✅ Never use your main wallet with significant holdings
@@ -440,13 +453,16 @@ npx ts-node tests/test-live-profitability.ts
 - ✅ Keep offline backup of private key
 - ✅ Monitor logs regularly
 - ✅ Use reputable RPC endpoints
+- ✅ Protect database file (`data/orb_mining.db`) with proper file permissions
 
 ### Built-in Protections
-- `.gitignore` excludes `.env`
+- **AES-256-GCM encryption** for sensitive data (PRIVATE_KEY)
+- Encryption key unique per installation
 - Multi-layer safety checks
 - Balance reserves
 - Price floor protection
 - EV-based gating
+- Input validation on all settings
 
 ---
 
