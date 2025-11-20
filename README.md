@@ -244,6 +244,36 @@ For running the bot 24/7 on a Linux server, see **[Option 2: Server Deployment](
 
 **Why this order?** The bot cannot start without `PRIVATE_KEY` configured. The dashboard provides a secure web interface to set this up remotely.
 
+### Updating & Restarting
+
+When new features are released, update your bot safely:
+
+```bash
+cd ~/orb_miner
+
+# 1. Pull latest changes
+git pull
+
+# 2. Install any new dependencies (if package.json changed)
+npm install
+cd dashboard && npm install && cd ..
+
+# 3. Rebuild (if code changed)
+npm run build
+npm run build:dashboard
+
+# 4. Restart ONLY orb miner processes (safe for shared servers)
+pm2 restart orb-bot orb-dashboard
+
+# OR restart using ecosystem file
+pm2 restart ecosystem.config.js
+
+# 5. Verify it's working
+pm2 logs orb-bot --lines 20
+```
+
+**Important:** Use `pm2 restart orb-bot orb-dashboard` instead of `pm2 restart all` if you have other PM2 processes running. This ensures only the bot is restarted, not your other services!
+
 ### PM2 Management Commands
 
 ```bash
@@ -256,11 +286,15 @@ pm2 logs                # All processes
 pm2 logs orb-bot        # Bot only
 pm2 logs orb-dashboard  # Dashboard only
 
-# Manage processes
-pm2 restart all         # Restart both
-pm2 restart orb-bot     # Restart bot only
-pm2 stop all            # Stop both
-pm2 delete all          # Remove from PM2
+# Restart processes
+pm2 restart orb-bot orb-dashboard  # Restart only orb miner (SAFE)
+pm2 restart all                     # Restart ALL PM2 processes (use with caution!)
+pm2 stop orb-bot orb-dashboard     # Stop only orb miner
+pm2 delete orb-bot orb-dashboard   # Remove from PM2
+
+# Save and auto-start on reboot
+pm2 save
+pm2 startup  # Follow the instructions it outputs
 
 # Monitor resources
 pm2 monit
