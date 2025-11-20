@@ -185,6 +185,63 @@ npm run pnl:reset        # Reset P&L tracking
 
 ---
 
+## 🚀 Production Deployment (PM2)
+
+For running the bot 24/7 on a Linux server, use **PM2** process manager:
+
+### Quick Setup
+
+```bash
+# Install PM2 globally
+npm install -g pm2
+
+# Start bot + dashboard using ecosystem file
+pm2 start ecosystem.config.js
+
+# Save process list (survives reboots)
+pm2 save
+
+# Setup auto-start on server reboot
+pm2 startup
+# (then run the command it outputs)
+```
+
+### PM2 Commands
+
+```bash
+# View status
+pm2 list
+pm2 status
+
+# View logs (real-time)
+pm2 logs                # All processes
+pm2 logs orb-bot        # Bot only
+pm2 logs orb-dashboard  # Dashboard only
+
+# Manage processes
+pm2 restart all         # Restart both
+pm2 restart orb-bot     # Restart bot only
+pm2 stop all            # Stop both
+pm2 delete all          # Remove from PM2
+
+# Monitor resources
+pm2 monit
+```
+
+### Ecosystem Configuration
+
+The included `ecosystem.config.js` runs bot and dashboard as separate processes:
+
+- **orb-bot**: Main mining bot (max 1GB RAM)
+- **orb-dashboard**: Web dashboard (max 500MB RAM)
+- Auto-restart on crashes
+- Separate log files per process
+- Resource limits to prevent memory leaks
+
+**Note:** Update the `cwd` path in `ecosystem.config.js` to match your installation directory.
+
+---
+
 ## 📊 Monitoring
 
 ### Real-Time Dashboard
