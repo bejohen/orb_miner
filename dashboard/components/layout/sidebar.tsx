@@ -20,6 +20,7 @@ import {
   Download,
   CheckCircle,
   Github,
+  ScrollText,
 } from 'lucide-react';
 
 const navigation = [
@@ -28,6 +29,7 @@ const navigation = [
   { name: 'Performance', href: '/performance', icon: Activity },
   { name: 'Transactions', href: '/transactions', icon: Receipt },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+  { name: 'Logs', href: '/logs', icon: ScrollText },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
