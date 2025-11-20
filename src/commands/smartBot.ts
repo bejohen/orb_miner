@@ -695,6 +695,8 @@ async function autoClaimMiningRewards(): Promise<void> {
 
 /**
  * Auto-claim staking rewards: Check and claim staking rewards when thresholds are met
+ *
+ * Uses Treasury stake rewards factor to calculate accrued rewards for more accurate detection.
  */
 async function autoClaimStakingRewards(): Promise<void> {
   try {
@@ -711,10 +713,34 @@ async function autoClaimStakingRewards(): Promise<void> {
     const stakeBefore = await fetchStake(wallet.publicKey);
     if (stakeBefore) {
       const stakedAmount = Number(stakeBefore.balance) / 1e9;
-      const stakingOrbBefore = Number(stakeBefore.rewardsOre) / 1e9;
 
-      if (stakedAmount > 0 && stakingOrbBefore >= config.autoClaimStakingOrbThreshold && !config.dryRun) {
-        logger.debug(`Staking: ${stakedAmount.toFixed(2)} ORB staked, ${stakingOrbBefore.toFixed(4)} ORB claimable`);
+      // Get REALIZED claimable rewards from Stake account
+      const realizedOrbRewards = Number(stakeBefore.rewardsOre) / 1e9;
+
+      // Get ACCRUED rewards using Treasury factor (more accurate)
+      let accruedOrbRewards = 0;
+      try {
+        const treasury = await fetchTreasury();
+        const { calculateAccruedStakingRewards } = await import('../utils/accounts');
+
+        const accruedLamports = calculateAccruedStakingRewards(
+          treasury.stakeRewardsFactor,
+          stakeBefore.rewardsFactor,
+          stakeBefore.balance
+        );
+        accruedOrbRewards = Number(accruedLamports) / 1e9;
+
+        logger.debug(`Staking rewards - Realized: ${realizedOrbRewards.toFixed(4)} ORB, Accrued: ${accruedOrbRewards.toFixed(4)} ORB`);
+      } catch (error) {
+        logger.debug('Could not calculate accrued staking rewards, using realized amount only');
+        accruedOrbRewards = realizedOrbRewards;
+      }
+
+      // Use the higher of realized or accrued rewards for claiming
+      const claimableOrbRewards = Math.max(realizedOrbRewards, accruedOrbRewards);
+
+      if (stakedAmount > 0 && claimableOrbRewards >= config.autoClaimStakingOrbThreshold && !config.dryRun) {
+        logger.debug(`Staking: ${stakedAmount.toFixed(2)} ORB staked, ${claimableOrbRewards.toFixed(4)} ORB claimable (realized: ${realizedOrbRewards.toFixed(4)}, accrued: ${accruedOrbRewards.toFixed(4)})`);
 
         try {
           const claimInstruction = await buildClaimYieldInstruction(config.autoClaimStakingOrbThreshold);
@@ -730,7 +756,7 @@ async function autoClaimStakingRewards(): Promise<void> {
             const stakeAfter = await fetchStake(wallet.publicKey);
             if (stakeAfter) {
               const stakingOrbAfter = Number(stakeAfter.rewardsOre) / 1e9;
-              const actualOrbClaimed = stakingOrbBefore - stakingOrbAfter;
+              const actualOrbClaimed = realizedOrbRewards - stakingOrbAfter;
 
               logger.debug(`Actual staking rewards claimed: ${actualOrbClaimed.toFixed(4)} ORB`);
 
@@ -1030,7 +1056,7 @@ async function autoStakeOrb(): Promise<void> {
         return;
       }
 
-      const instruction = await buildStakeInstruction(stakeAmount);
+      const instruction = buildStakeInstruction(stakeAmount);
       const signature = await sendAndConfirmTransaction([instruction], 'Auto-Stake');
       ui.success(`Staked ${stakeAmount.toFixed(2)} ORB`);
       logger.debug(`Transaction: ${signature}`);
@@ -1413,10 +1439,20 @@ export async function smartBotCommand(): Promise<void> {
           const currentMotherload = Number(treasury.motherlode) / 1e9;
           logger.debug(`Current motherload: ${currentMotherload.toFixed(2)} ORB (threshold: ${config.motherloadThreshold} ORB)`);
 
-          // If motherload below threshold, skip mining this round
+          // If motherload below threshold, skip automation setup/deployment but still do claims/swaps
           if (currentMotherload < config.motherloadThreshold) {
             ui.info(`⏸️  Motherload (${currentMotherload.toFixed(2)} ORB) below threshold (${config.motherloadThreshold} ORB) - waiting...`);
-            continue; // Skip to next round check
+            ui.info('Still checking for claimable rewards and performing swaps...');
+
+            // Do periodic operations even when not mining
+            await autoClaimMiningRewards();
+            await autoClaimStakingRewards();
+            await autoStakeOrb();
+            await autoSwapCheck();
+            await captureBalanceSnapshot();
+
+            // Skip to next round check (don't create automation or deploy)
+            continue;
           }
 
           // Motherload is above threshold - check/create automation

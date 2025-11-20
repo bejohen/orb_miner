@@ -55,6 +55,9 @@ export async function GET() {
     let behindBy = 0;
 
     try {
+      // Check if remote branch exists first
+      await execAsync(`git rev-parse --verify origin/${branch}`, { timeout: 2000 });
+
       const { stdout: remoteCommit } = await execAsync(`git rev-parse origin/${branch}`);
       remoteCommitHash = remoteCommit.trim();
 
@@ -68,8 +71,12 @@ export async function GET() {
         );
         behindBy = parseInt(behindCount.trim(), 10);
       }
-    } catch (remoteError) {
-      console.error('Failed to get remote commit:', remoteError);
+    } catch (remoteError: any) {
+      // Remote branch doesn't exist or other error - this is normal for local-only branches
+      if (remoteError.code !== 128) {
+        // Only log if it's not the "branch doesn't exist" error
+        console.error('Failed to get remote commit:', remoteError);
+      }
       // If we can't get remote info, assume we're up to date
     }
 
