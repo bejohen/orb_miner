@@ -450,15 +450,6 @@ npx ts-node tests/test-live-profitability.ts
 
 ---
 
-## 📚 Documentation
-
-- **[TECHNICAL.md](TECHNICAL.md)** - Architecture, account structures, customization
-- **[FEE_OPTIMIZATION.md](FEE_OPTIMIZATION.md)** - Dynamic fee estimation guide
-- **[.env.example](.env.example)** - All configuration options
-- **[CLAUDE.md](CLAUDE.md)** - AI assistant project context
-
----
-
 ## ⚠️ Disclaimer
 
 **BETA SOFTWARE** - Use caution and start with small amounts.
@@ -479,10 +470,9 @@ This software is provided "as-is" without warranty of any kind. The developers a
 ## 💬 Support
 
 [![GitHub Issues](https://img.shields.io/badge/Issues-Report%20Bug-red?style=flat&logo=github)](https://github.com/CryptoGnome/orb_miner/issues)
-[![Documentation](https://img.shields.io/badge/Docs-Technical-blue?style=flat&logo=readthedocs)](TECHNICAL.md)
 [![ORB Protocol](https://img.shields.io/badge/ORB-ore.blue-purple?style=flat&logo=solana)](https://ore.blue/)
 
-**Questions?** Check [TECHNICAL.md](TECHNICAL.md) or open an issue
+**Questions?** Open an issue
 
 **Updates?** Star/Watch this repo to stay notified
 
