@@ -214,7 +214,7 @@ export function Sidebar() {
 
         {/* GitHub Link */}
         <a
-          href="https://github.com/yourusername/orb_miner"
+          href="https://github.com/CryptoGnome/orb_miner"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center justify-center gap-2 rounded-lg bg-accent/50 p-3 text-sm text-muted-foreground transition-all hover:bg-accent hover:text-primary"
