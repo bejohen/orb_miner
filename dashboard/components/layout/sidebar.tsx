@@ -18,6 +18,7 @@ import {
   GitBranch,
   Download,
   CheckCircle,
+  Github,
 } from 'lucide-react';
 
 const navigation = [
@@ -207,6 +208,17 @@ export function Sidebar() {
             </div>
           </div>
         )}
+
+        {/* GitHub Link */}
+        <a
+          href="https://github.com/yourusername/orb_miner"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-2 rounded-lg bg-accent/50 p-3 text-sm text-muted-foreground transition-all hover:bg-accent hover:text-primary"
+        >
+          <Github className="h-4 w-4" />
+          <span className="text-xs font-medium">View on GitHub</span>
+        </a>
       </div>
     </div>
   );
