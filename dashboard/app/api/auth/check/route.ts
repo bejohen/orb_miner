@@ -19,9 +19,17 @@ export async function GET() {
     const passwordRequired = Boolean(passwordRow && passwordRow.value);
 
     if (!passwordRequired) {
-      // No password set - no authentication required
+      // No password set - automatically authenticate the user
+      const cookieStore = await cookies();
+      cookieStore.set('dashboard_auth', 'authenticated', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 7, // 7 days
+      });
+
       return NextResponse.json({
-        authenticated: false,
+        authenticated: true,
         passwordRequired: false,
       });
     }
