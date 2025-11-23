@@ -132,7 +132,7 @@ export async function initializeDefaultSettings(): Promise<void> {
       { key: 'INITIAL_AUTOMATION_BUDGET_PCT', value: '90', type: 'number', description: 'Initial automation budget %' },
 
       // Deployment Amount Strategy
-      { key: 'DEPLOYMENT_AMOUNT_STRATEGY', value: 'auto', type: 'string', description: 'Deployment amount strategy (auto/manual/fixed_rounds/percentage)' },
+      { key: 'DEPLOYMENT_AMOUNT_STRATEGY', value: 'ultra_conservative', type: 'string', description: 'Deployment amount strategy (ultra_conservative/balanced/aggressive/kelly_optimized/manual/fixed_rounds/percentage)' },
       { key: 'MANUAL_AMOUNT_PER_ROUND', value: '0.01', type: 'number', description: 'Manual: SOL amount per round' },
       { key: 'TARGET_ROUNDS', value: '100', type: 'number', description: 'Fixed Rounds: Target number of rounds' },
       { key: 'BUDGET_PERCENTAGE_PER_ROUND', value: '1.0', type: 'number', description: 'Percentage: % of budget per round' },
