@@ -72,7 +72,7 @@ export default function Analytics() {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="balance" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4">
                 <TabsTrigger value="balance" className="text-xs">
                   <TrendingUp className="h-3 w-3 mr-1" />
                   Balance

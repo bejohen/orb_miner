@@ -222,7 +222,7 @@ export default function SettingsPage() {
 
         {/* Settings Tabs */}
         <Tabs defaultValue="network" className="w-full">
-          <TabsList className="grid w-full grid-cols-7">
+          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-7 gap-2">
             {categories.map((category) => {
               const config = CATEGORY_CONFIG[category];
               const Icon = config.icon;
@@ -280,7 +280,7 @@ export default function SettingsPage() {
                   <CardContent className="space-y-6 pt-6">
                     {categorySettings.filter(isSettingVisible).map((setting: any) => (
                       <div key={setting.key} className="space-y-2">
-                        <div className="flex items-start justify-between gap-4">
+                        <div className="flex flex-col lg:flex-row items-start justify-between gap-3 lg:gap-4">
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <Label htmlFor={setting.key} className="text-base">
@@ -297,7 +297,7 @@ export default function SettingsPage() {
                             </p>
                           </div>
 
-                          <div className="ml-4 min-w-[200px]">
+                          <div className="lg:ml-4 w-full lg:min-w-[200px] lg:w-auto">
                             {setting.type === 'boolean' && (
                               <Switch
                                 id={setting.key}

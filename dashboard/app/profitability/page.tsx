@@ -39,8 +39,8 @@ export default function Profitability() {
       <div className="space-y-4">
         {/* Net PnL Hero */}
         <Card className="border-primary/50 neon-border">
-          <CardContent className="px-6 py-6">
-            <div className="flex items-start justify-between gap-6">
+          <CardContent className="px-4 py-4 lg:px-6 lg:py-6">
+            <div className="flex flex-col lg:flex-row items-start lg:items-start justify-between gap-4 lg:gap-6">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
                   <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Profit & Loss</h3>
@@ -56,16 +56,16 @@ export default function Profitability() {
                     </Badge>
                   )}
                 </div>
-                <div className="flex items-baseline gap-3 mb-1">
+                <div className="flex items-baseline gap-2 lg:gap-3 mb-1">
                   <span className={cn(
-                    "text-6xl font-black tracking-tight",
+                    "text-4xl lg:text-6xl font-black tracking-tight",
                     isProfit ? "text-green-500 neon-text" : "text-red-500"
                   )}>
                     {isProfit ? '+' : ''}{(pnl?.summary?.netProfit || 0).toFixed(4)}
                   </span>
-                  <span className="text-3xl font-bold text-muted-foreground/60">SOL</span>
+                  <span className="text-2xl lg:text-3xl font-bold text-muted-foreground/60">SOL</span>
                 </div>
-                <p className="text-lg font-semibold text-muted-foreground/80 mb-3">
+                <p className="text-base lg:text-lg font-semibold text-muted-foreground/80 mb-2 lg:mb-3">
                   {isProfit ? '+' : ''}${((pnl?.summary?.netProfit || 0) * solPriceUsd).toFixed(2)} USD
                 </p>
                 <div className="flex items-center gap-2">
@@ -86,9 +86,9 @@ export default function Profitability() {
                 </div>
               </div>
               {isProfit ? (
-                <TrendingUp className="h-16 w-16 text-green-500 flex-shrink-0" />
+                <TrendingUp className="h-12 w-12 lg:h-16 lg:w-16 text-green-500 flex-shrink-0" />
               ) : (
-                <TrendingDown className="h-16 w-16 text-red-500 flex-shrink-0" />
+                <TrendingDown className="h-12 w-12 lg:h-16 lg:w-16 text-red-500 flex-shrink-0" />
               )}
             </div>
           </CardContent>
@@ -250,21 +250,21 @@ export default function Profitability() {
             <CardTitle className="text-base">Activity Statistics</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-gradient-to-br from-blue-500/10 to-transparent border border-blue-500/20 rounded-lg p-4 text-center">
-                <p className="text-3xl font-black text-blue-400 mb-1">{pnl?.breakdown?.stats?.roundsParticipated || 0}</p>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+              <div className="bg-gradient-to-br from-blue-500/10 to-transparent border border-blue-500/20 rounded-lg p-3 lg:p-4 text-center">
+                <p className="text-2xl lg:text-3xl font-black text-blue-400 mb-1">{pnl?.breakdown?.stats?.roundsParticipated || 0}</p>
                 <p className="text-[10px] text-blue-400/70 uppercase tracking-wide font-semibold">Rounds</p>
               </div>
-              <div className="bg-gradient-to-br from-emerald-500/10 to-transparent border border-emerald-500/20 rounded-lg p-4 text-center">
-                <p className="text-3xl font-black text-emerald-400 mb-1">{pnl?.breakdown?.stats?.totalDeployments || 0}</p>
+              <div className="bg-gradient-to-br from-emerald-500/10 to-transparent border border-emerald-500/20 rounded-lg p-3 lg:p-4 text-center">
+                <p className="text-2xl lg:text-3xl font-black text-emerald-400 mb-1">{pnl?.breakdown?.stats?.totalDeployments || 0}</p>
                 <p className="text-[10px] text-emerald-400/70 uppercase tracking-wide font-semibold">Deployments</p>
               </div>
-              <div className="bg-gradient-to-br from-purple-500/10 to-transparent border border-purple-500/20 rounded-lg p-4 text-center">
-                <p className="text-3xl font-black text-purple-400 mb-1">{pnl?.breakdown?.stats?.totalClaims || 0}</p>
+              <div className="bg-gradient-to-br from-purple-500/10 to-transparent border border-purple-500/20 rounded-lg p-3 lg:p-4 text-center">
+                <p className="text-2xl lg:text-3xl font-black text-purple-400 mb-1">{pnl?.breakdown?.stats?.totalClaims || 0}</p>
                 <p className="text-[10px] text-purple-400/70 uppercase tracking-wide font-semibold">Claims</p>
               </div>
-              <div className="bg-gradient-to-br from-cyan-500/10 to-transparent border border-cyan-500/20 rounded-lg p-4 text-center">
-                <p className="text-3xl font-black text-cyan-400 mb-1">{pnl?.breakdown?.stats?.totalSwaps || 0}</p>
+              <div className="bg-gradient-to-br from-cyan-500/10 to-transparent border border-cyan-500/20 rounded-lg p-3 lg:p-4 text-center">
+                <p className="text-2xl lg:text-3xl font-black text-cyan-400 mb-1">{pnl?.breakdown?.stats?.totalSwaps || 0}</p>
                 <p className="text-[10px] text-cyan-400/70 uppercase tracking-wide font-semibold">Swaps</p>
               </div>
             </div>

@@ -62,6 +62,7 @@ export default function Transactions() {
             {transactions.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">No transactions found</p>
             ) : (
+              <div className="overflow-x-auto -mx-2 lg:mx-0">
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
@@ -103,6 +104,7 @@ export default function Transactions() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             )}
           </CardContent>
         </Card>

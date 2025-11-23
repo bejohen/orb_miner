@@ -47,6 +47,7 @@ export default function Performance() {
             {rounds.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">No rounds found</p>
             ) : (
+              <div className="overflow-x-auto -mx-2 lg:mx-0">
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
@@ -75,6 +76,7 @@ export default function Performance() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             )}
           </CardContent>
         </Card>

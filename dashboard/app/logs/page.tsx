@@ -87,9 +87,9 @@ export default function LogsPage() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-4 lg:p-6 space-y-4 lg:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 lg:gap-0">
         <div>
           <h1 className="text-3xl font-bold">Bot Logs</h1>
           <p className="text-muted-foreground mt-1">
@@ -151,7 +151,7 @@ export default function LogsPage() {
 
       {/* Log Tabs */}
       <Tabs value={logType} onValueChange={(v) => setLogType(v as LogType)}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-1 lg:grid-cols-3">
           <TabsTrigger value="combined">
             📋 All Logs
           </TabsTrigger>

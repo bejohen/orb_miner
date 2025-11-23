@@ -165,29 +165,29 @@ export default function Home() {
       <div className="space-y-4">
         {/* Profit & Loss Hero */}
         <Card className="border-primary/50 neon-border overflow-hidden">
-          <CardContent className="px-6 py-6">
-            <div className="flex items-start justify-between gap-8 mb-6">
+          <CardContent className="px-4 py-4 lg:px-6 lg:py-6">
+            <div className="flex flex-col lg:flex-row items-start lg:items-start justify-between gap-6 lg:gap-8 mb-4 lg:mb-6">
               {/* Profit Display */}
-              <div className="flex-shrink-0">
-                <div className="flex items-center gap-3 mb-2">
-                  <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Net Profit</h3>
+              <div className="flex-shrink-0 w-full lg:w-auto">
+                <div className="flex items-center gap-2 lg:gap-3 mb-2">
+                  <h3 className="text-[10px] lg:text-xs font-medium text-muted-foreground uppercase tracking-wide">Net Profit</h3>
                   <Badge variant="outline" className={cn(
-                    "text-xs font-bold",
+                    "text-[10px] lg:text-xs font-bold",
                     isProfit ? "bg-green-500/20 text-green-500 border-green-500/50" : "bg-red-500/20 text-red-500 border-red-500/50"
                   )}>
                     {isProfit ? '+' : ''}{roi.toFixed(2)}%
                   </Badge>
                 </div>
-                <div className="flex items-baseline gap-3 mb-1">
+                <div className="flex items-baseline gap-2 lg:gap-3 mb-1">
                   <span className={cn(
-                    "text-6xl font-black tracking-tight",
+                    "text-4xl lg:text-6xl font-black tracking-tight",
                     isProfit ? "text-green-500 neon-text" : "text-red-500"
                   )}>
                     {isProfit ? '+' : ''}{netPnL.toFixed(4)}
                   </span>
-                  <span className="text-3xl font-bold text-muted-foreground/60">SOL</span>
+                  <span className="text-2xl lg:text-3xl font-bold text-muted-foreground/60">SOL</span>
                 </div>
-                <p className="text-lg font-semibold text-muted-foreground/80 mb-3">
+                <p className="text-base lg:text-lg font-semibold text-muted-foreground/80 mb-2 lg:mb-3">
                   {isProfit ? '+' : ''}${(netPnL * solPriceUsd).toFixed(2)} USD
                 </p>
                 <div className="flex items-center gap-2">
@@ -210,9 +210,9 @@ export default function Home() {
 
               {/* Chart - Center */}
               {chartData.length > 0 && (
-                <div className="flex-1 relative">
+                <div className="flex-1 relative w-full lg:w-auto min-h-[120px] lg:min-h-[140px]">
                   {/* Time Range Selector */}
-                  <div className="absolute -top-2 right-0 z-10 flex gap-1">
+                  <div className="absolute -top-1 lg:-top-2 right-0 z-10 flex gap-1">
                     {(['1d', '7d', '1m', 'all'] as TimeRange[]).map((range) => (
                       <button
                         key={range}
@@ -229,7 +229,7 @@ export default function Home() {
                     ))}
                   </div>
 
-                  <ResponsiveContainer width="100%" height={140}>
+                  <ResponsiveContainer width="100%" height={120} className="lg:h-[140px]">
                     <LineChart data={chartData}>
                       <defs>
                         <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
@@ -277,7 +277,7 @@ export default function Home() {
               )}
 
               {/* Mining Animation - Right */}
-              <div className="flex-shrink-0">
+              <div className="flex-shrink-0 w-full lg:w-auto flex justify-center lg:justify-end">
                 <MiningAnimation
                   isActive={status?.automation?.isActive || false}
                   status={(status?.botStatus as 'mining' | 'waiting' | 'idle') || 'idle'}
@@ -286,20 +286,20 @@ export default function Home() {
             </div>
 
             {/* Metrics Grid */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-gradient-to-br from-emerald-500/10 to-transparent border border-emerald-500/20 rounded-lg p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 lg:gap-4">
+              <div className="bg-gradient-to-br from-emerald-500/10 to-transparent border border-emerald-500/20 rounded-lg p-3 lg:p-4">
                 <p className="text-[10px] text-emerald-400/80 uppercase tracking-wide mb-1.5 font-semibold">ORB Earned</p>
                 <p className="text-2xl font-black text-emerald-400 mb-0.5">{(pnl?.breakdown?.income?.orbFromMining || 0).toFixed(2)}</p>
                 <p className="text-[9px] text-muted-foreground/60">(before 10% fee)</p>
               </div>
 
-              <div className="bg-gradient-to-br from-purple-500/10 to-transparent border border-purple-500/20 rounded-lg p-4">
+              <div className="bg-gradient-to-br from-purple-500/10 to-transparent border border-purple-500/20 rounded-lg p-3 lg:p-4">
                 <p className="text-[10px] text-purple-400/80 uppercase tracking-wide mb-1.5 font-semibold">ORB Claimed</p>
                 <p className="text-2xl font-black text-purple-400 mb-0.5">{(pnl?.breakdown?.income?.orbSwappedCount || 0).toFixed(2)}</p>
                 <p className="text-[9px] text-muted-foreground/60">(after 10% fee)</p>
               </div>
 
-              <div className="bg-gradient-to-br from-red-500/10 to-transparent border border-red-500/20 rounded-lg p-4">
+              <div className="bg-gradient-to-br from-red-500/10 to-transparent border border-red-500/20 rounded-lg p-3 lg:p-4">
                 <p className="text-[10px] text-red-400/80 uppercase tracking-wide mb-1.5 font-semibold">Total Fees</p>
                 <p className="text-2xl font-black text-red-400 mb-0.5">{(pnl?.summary?.totalExpenses || 0).toFixed(4)}</p>
                 <p className="text-[9px] text-muted-foreground/60">SOL (all costs)</p>
@@ -309,7 +309,7 @@ export default function Home() {
         </Card>
 
         {/* Compact Balances & Info */}
-        <div className="grid md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Balances */}
           <Card className="border-primary/30">
             <CardHeader className="pb-3">
