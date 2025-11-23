@@ -248,6 +248,17 @@ export const SETTINGS_DEFINITIONS: SettingDefinition[] = [
     step: 60000,
     category: 'automation',
   },
+  {
+    key: 'CHECK_STAKING_REWARDS_INTERVAL_MS',
+    type: 'number',
+    label: 'Check Staking Rewards Interval (ms)',
+    description: 'How often to check for claimable staking rewards (accumulates slower than mining)',
+    defaultValue: 600000,
+    min: 60000,
+    max: 3600000,
+    step: 60000,
+    category: 'automation',
+  },
 
   // Swap Settings
   {
@@ -278,6 +289,28 @@ export const SETTINGS_DEFINITIONS: SettingDefinition[] = [
     min: 0,
     max: 200,
     step: 5,
+    category: 'swap',
+  },
+  {
+    key: 'MIN_ORB_TO_KEEP',
+    type: 'number',
+    label: 'Min ORB to Keep',
+    description: 'Minimum ORB to keep in wallet (will not swap below this)',
+    defaultValue: 0,
+    min: 0,
+    max: 50,
+    step: 0.5,
+    category: 'swap',
+  },
+  {
+    key: 'MIN_ORB_SWAP_AMOUNT',
+    type: 'number',
+    label: 'Min ORB Swap Amount',
+    description: 'Minimum ORB amount required to execute a swap',
+    defaultValue: 0.1,
+    min: 0.01,
+    max: 10,
+    step: 0.1,
     category: 'swap',
   },
   {

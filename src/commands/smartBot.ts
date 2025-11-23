@@ -25,7 +25,6 @@ import { isSetupNeeded } from '../utils/setupWizard';
 import { sleep } from '../utils/retry';
 import { TransactionInstruction, SystemProgram, PublicKey } from '@solana/web3.js';
 import BN from 'bn.js';
-import { exec } from 'child_process';
 import logger, { ui } from '../utils/logger';
 import {
   calculateDeploymentAmount,
@@ -45,6 +44,7 @@ import {
   getBaselineBalance,
   setBaselineBalance,
   recordMotherload,
+  getQuery,
 } from '../utils/database';
 import {
   getCompletePnLSummary,
@@ -106,6 +106,23 @@ function setupSignalHandlers() {
 
   process.once('SIGINT', shutdownHandler);
   process.once('SIGTERM', shutdownHandler);
+}
+
+/**
+ * Get the dashboard port from database configuration
+ * Returns 3888 as default if not configured
+ */
+async function getDashboardPort(): Promise<string> {
+  try {
+    const portRow = await getQuery<{ value: string }>(
+      'SELECT value FROM settings WHERE key = ?',
+      ['DASHBOARD_PORT']
+    );
+    return portRow?.value || '3888';
+  } catch (error) {
+    // If database query fails, return default
+    return '3888';
+  }
 }
 
 /**
@@ -334,7 +351,7 @@ async function autoSetupAutomation(): Promise<boolean> {
     );
 
     ui.info('Creating automation account...');
-    const signature = await sendAndConfirmTransaction([instruction], 'Setup Automation');
+    const { signature, fee: actualFee } = await sendAndConfirmTransaction([instruction], 'Setup Automation');
     ui.success('Automation account created!');
     logger.debug(`Transaction: ${signature}`);
 
@@ -363,7 +380,7 @@ async function autoSetupAutomation(): Promise<boolean> {
         status: 'success',
         notes: `Setup: ${deploymentCalc.notes} (motherload: ${motherloadOrb.toFixed(2)} ORB)`,
         orbPriceUsd,
-        txFeeSol: 0.005, // Estimated setup transaction fee
+        txFeeSol: actualFee,
       });
     } catch (error) {
       logger.error('Failed to record automation setup:', error);
@@ -543,7 +560,7 @@ async function autoClaimMiningRewards(): Promise<void> {
       try {
         const { buildCheckpointInstruction } = await import('../utils/program');
         const checkpointIx = await buildCheckpointInstruction();
-        const checkpointSig = await sendAndConfirmTransaction([checkpointIx], 'Checkpoint');
+        const { signature: checkpointSig } = await sendAndConfirmTransaction([checkpointIx], 'Checkpoint');
         logger.debug(`Checkpointed: ${checkpointSig}`);
 
         // Wait a moment for state to update
@@ -599,7 +616,7 @@ async function autoClaimMiningRewards(): Promise<void> {
 
     // Send mining claims (if any)
     if (instructions.length > 0 && !config.dryRun) {
-      const signature = await sendAndConfirmTransaction(instructions, 'Auto-Claim Mining');
+      const { signature, fee: actualFee } = await sendAndConfirmTransaction(instructions, 'Auto-Claim Mining');
       ui.success(`Claimed mining rewards`);
       logger.debug(`Transaction: ${signature}`);
 
@@ -623,6 +640,11 @@ async function autoClaimMiningRewards(): Promise<void> {
           const { priceInUsd: orbPriceUsd } = await getOrbPrice();
 
           // Record only if actually claimed (> 0)
+          // Split the fee proportionally between SOL and ORB claims if both exist
+          const bothClaimed = (actualSolClaimed > 0.0001) && (actualOrbClaimed > 0.0001);
+          const solFee = bothClaimed ? actualFee / 2 : actualFee;
+          const orbFee = bothClaimed ? actualFee / 2 : actualFee;
+
           if (actualSolClaimed > 0.0001) {
             await recordTransaction({
               type: 'claim_sol',
@@ -631,7 +653,7 @@ async function autoClaimMiningRewards(): Promise<void> {
               status: 'success',
               notes: 'Mining rewards',
               orbPriceUsd,
-              txFeeSol: 0.0005, // Estimated claim transaction fee
+              txFeeSol: solFee,
             });
           }
 
@@ -643,7 +665,7 @@ async function autoClaimMiningRewards(): Promise<void> {
               status: 'success',
               notes: 'Mining rewards',
               orbPriceUsd,
-              txFeeSol: 0.0005, // Estimated claim transaction fee
+              txFeeSol: orbFee,
             });
           }
         }
@@ -726,7 +748,7 @@ async function autoClaimStakingRewards(): Promise<void> {
 
         try {
           const claimInstruction = await buildClaimYieldInstruction(config.autoClaimStakingOrbThreshold);
-          const signature = await sendAndConfirmTransaction([claimInstruction], 'Auto-Claim Staking');
+          const { signature, fee: actualFee } = await sendAndConfirmTransaction([claimInstruction], 'Auto-Claim Staking');
           ui.success(`Claimed staking rewards`);
           logger.debug(`Transaction: ${signature}`);
 
@@ -750,6 +772,7 @@ async function autoClaimStakingRewards(): Promise<void> {
                   orbAmount: actualOrbClaimed,
                   status: 'success',
                   notes: 'Staking rewards',
+                  txFeeSol: actualFee,
                 });
               }
             }
@@ -856,7 +879,7 @@ async function restartAutomationForScaling(): Promise<boolean> {
     const returnedSol = await getAutomationBalanceForClose();
 
     const closeInstruction = buildCloseAutomationInstruction();
-    const closeSig = await sendAndConfirmTransaction([closeInstruction], 'Close Automation for Scaling');
+    const { signature: closeSig, fee: actualFee } = await sendAndConfirmTransaction([closeInstruction], 'Close Automation for Scaling');
     logger.debug(`Automation closed: ${closeSig}`);
 
     // Record automation close with returned SOL amount
@@ -870,7 +893,7 @@ async function restartAutomationForScaling(): Promise<boolean> {
         status: 'success',
         notes: `Closed for dynamic scaling - returned ${returnedSol.toFixed(4)} SOL to wallet`,
         orbPriceUsd,
-        txFeeSol: 0.0005, // Estimated close transaction fee
+        txFeeSol: actualFee,
       });
     } catch (error) {
       logger.error('Failed to record automation close:', error);
@@ -1039,7 +1062,7 @@ async function autoStakeOrb(): Promise<void> {
       }
 
       const instruction = buildStakeInstruction(stakeAmount);
-      const signature = await sendAndConfirmTransaction([instruction], 'Auto-Stake');
+      const { signature, fee: actualFee } = await sendAndConfirmTransaction([instruction], 'Auto-Stake');
       ui.success(`Staked ${stakeAmount.toFixed(2)} ORB`);
       logger.debug(`Transaction: ${signature}`);
 
@@ -1051,6 +1074,7 @@ async function autoStakeOrb(): Promise<void> {
           orbAmount: stakeAmount,
           status: 'success',
           notes: 'Auto-staked excess ORB',
+          txFeeSol: actualFee,
         });
       } catch (error) {
         logger.error('Failed to record stake:', error);
@@ -1107,7 +1131,7 @@ async function autoMineRound(automationInfo: any): Promise<boolean> {
 
       try {
         const checkpointIx = await buildCheckpointInstruction();
-        const checkpointSig = await sendAndConfirmTransaction([checkpointIx], 'Checkpoint');
+        const { signature: checkpointSig } = await sendAndConfirmTransaction([checkpointIx], 'Checkpoint');
         logger.debug(`Checkpoint transaction: ${checkpointSig}`);
         ui.success(`Checkpointed ${roundsBehind} round(s)`);
       } catch (error: any) {
@@ -1193,7 +1217,7 @@ async function autoMineRound(automationInfo: any): Promise<boolean> {
 
     // Build execute automation instructions (includes 0.1% dev fee + deploy)
     const instructions = await buildExecuteAutomationInstruction();
-    const signature = await sendAndConfirmTransaction(instructions, 'Auto-Mine');
+    const { signature, fee: actualFee } = await sendAndConfirmTransaction(instructions, 'Auto-Mine');
 
     ui.success(`Mining deployment complete`);
     logger.debug(`Transaction: ${signature}`);
@@ -1208,9 +1232,8 @@ async function autoMineRound(automationInfo: any): Promise<boolean> {
       // Get ORB price for transaction record
       const { priceInUsd: orbPriceUsd } = await getOrbPrice();
 
-      // Calculate fees
+      // Calculate protocol fee
       const protocolFee = solPerRound * 0.10; // 10% protocol fee per deployment
-      const estimatedTxFee = 0.0085; // Estimated transaction fee
 
       await recordTransaction({
         type: 'deploy',
@@ -1220,7 +1243,7 @@ async function autoMineRound(automationInfo: any): Promise<boolean> {
         status: 'success',
         notes: `Deployed to 25 squares (motherload: ${motherloadOrb.toFixed(2)} ORB)`,
         orbPriceUsd,
-        txFeeSol: estimatedTxFee,
+        txFeeSol: actualFee,
         protocolFeeSol: protocolFee,
       });
 
@@ -1253,14 +1276,14 @@ async function autoMineRound(automationInfo: any): Promise<boolean> {
 
         // Single checkpoint instruction handles all pending rounds
         const checkpointIx = await buildCheckpointInstruction();
-        const signature = await sendAndConfirmTransaction([checkpointIx], 'Checkpoint');
+        const { signature } = await sendAndConfirmTransaction([checkpointIx], 'Checkpoint');
         ui.success(`Checkpointed previous rounds`);
         logger.debug(`Transaction: ${signature}`);
 
         // Retry deployment after successful checkpoint
         if (!config.dryRun) {
           const instructions = await buildExecuteAutomationInstruction();
-          const deploySig = await sendAndConfirmTransaction(instructions, 'Auto-Mine');
+          const { signature: deploySig } = await sendAndConfirmTransaction(instructions, 'Auto-Mine');
 
           const solPerRound = automationInfo.costPerRound / 1e9;
           ui.success(`Mining deployment complete`);
@@ -1281,7 +1304,7 @@ async function autoMineRound(automationInfo: any): Promise<boolean> {
           if (!config.dryRun) {
             try {
               const instructions = await buildExecuteAutomationInstruction();
-              const deploySig = await sendAndConfirmTransaction(instructions, 'Auto-Mine');
+              const { signature: deploySig } = await sendAndConfirmTransaction(instructions, 'Auto-Mine');
 
               const solPerRound = automationInfo.costPerRound / 1e9;
               ui.success(`Mining deployment complete`);
@@ -1334,38 +1357,21 @@ export async function smartBotCommand(): Promise<void> {
       ui.blank();
       ui.error('PRIVATE_KEY not configured!');
       ui.blank();
-      ui.info('Opening setup wizard in your browser...');
 
-      // Open browser automatically (cross-platform) and wait for it
-      const setupUrl = 'http://localhost:3000/setup';
-      const openCommand = process.platform === 'win32'
-        ? `start ${setupUrl}`
-        : process.platform === 'darwin'
-        ? `open ${setupUrl}`
-        : `xdg-open ${setupUrl}`;
+      // Get dashboard port from configuration
+      const port = await getDashboardPort();
+      const setupUrl = `http://localhost:${port}/setup`;
 
-      await new Promise<void>((resolve) => {
-        exec(openCommand, (error) => {
-          if (error) {
-            ui.warning('Could not open browser automatically');
-            ui.info('Please manually open: http://localhost:3000/setup');
-          } else {
-            ui.success('✓ Browser opened to setup page');
-          }
-          // Always resolve to continue
-          setTimeout(resolve, 500);
-        });
-      });
-
+      ui.info('The setup wizard has been opened in your browser.');
       ui.blank();
-      ui.info('The setup wizard will guide you through:');
+      ui.info('The wizard will guide you through:');
       ui.info('  • Wallet Private Key (encrypted & secure)');
       ui.info('  • RPC Endpoint (optional, has default)');
       ui.blank();
       ui.warning('Once setup is complete, restart the bot with: npm run start:bot');
       ui.blank();
 
-      throw new Error('Setup required - visit http://localhost:3000/setup');
+      throw new Error(`Setup required - visit ${setupUrl}`);
     }
 
     ui.success('Configuration loaded successfully');
@@ -1559,7 +1565,7 @@ export async function smartBotCommand(): Promise<void> {
 
               try {
                 const closeInstruction = buildCloseAutomationInstruction();
-                const closeSig = await sendAndConfirmTransaction([closeInstruction], 'Close Automation');
+                const { signature: closeSig, fee: actualFee } = await sendAndConfirmTransaction([closeInstruction], 'Close Automation');
                 logger.debug(`Automation account closed: ${closeSig}`);
                 ui.success('SOL reclaimed - will recreate automation on next round');
 
@@ -1575,7 +1581,7 @@ export async function smartBotCommand(): Promise<void> {
                     status: 'success',
                     notes: `Budget depleted - closed for SOL reclaim (returned ${returnedSol.toFixed(6)} SOL)`,
                     orbPriceUsd,
-                    txFeeSol: 0.0005, // Estimated close transaction fee
+                    txFeeSol: actualFee,
                   });
                 } catch (error) {
                   logger.error('Failed to record automation close:', error);
