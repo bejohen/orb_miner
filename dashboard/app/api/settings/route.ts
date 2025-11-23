@@ -321,8 +321,8 @@ export const SETTINGS_DEFINITIONS: SettingDefinition[] = [
     description: 'Minimum ORB to keep in wallet (will not swap below this)',
     defaultValue: 0,
     min: 0,
-    max: 50,
-    step: 0.5,
+    max: 2000,
+    step: 10,
     category: 'swap',
   },
   {
