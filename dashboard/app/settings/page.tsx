@@ -168,25 +168,80 @@ export default function SettingsPage() {
       if (!isNaN(value)) {
         debouncedSave(key, value);
       }
-    } else {
-      // Save immediately for non-number types
+    } else if (setting?.type === 'boolean' || setting?.type === 'select') {
+      // Save immediately for toggles and selects (instant feedback)
       mutation.mutate({ key, value });
     }
+    // Text and password fields save on blur only (see handleTextBlur)
   };
 
   const handleTextBlur = (key: string) => {
     const value = localValues[key];
+    const currentValue = data?.settings[key]?.value;
+
     // Only update if changed
-    if (value !== data?.settings[key]?.value) {
+    if (value !== currentValue) {
+      // Special validation for RPC_ENDPOINT
+      if (key === 'RPC_ENDPOINT' && value === 'https://api.mainnet-beta.solana.com') {
+        // Warn if switching to public RPC
+        const confirmSwitch = window.confirm(
+          '⚠️ WARNING: Switching to Public RPC\n\n' +
+          'The default public RPC has strict rate limits and will cause 429 errors.\n\n' +
+          'Current RPC: ' + currentValue + '\n' +
+          'New RPC: ' + value + '\n\n' +
+          'Are you sure you want to switch to the public RPC?'
+        );
+
+        if (!confirmSwitch) {
+          // Revert to current value
+          setLocalValues((prev) => ({ ...prev, [key]: currentValue }));
+          toast.info('RPC change cancelled', {
+            description: 'Keeping your current RPC endpoint'
+          });
+          return;
+        }
+
+        toast.warning('Using public RPC', {
+          description: 'Consider using a premium RPC like Helius for better performance'
+        });
+      }
+
       mutation.mutate({ key, value });
     }
   };
 
-  if (isLoading) {
+  if (isLoading || !data) {
     return (
       <DashboardLayout>
-        <div className="flex h-full items-center justify-center">
-          <Settings className="h-12 w-12 animate-pulse text-primary" />
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold text-primary flex items-center gap-3">
+              <Settings className="h-8 w-8" />
+              Settings
+            </h1>
+            <p className="text-muted-foreground mt-2">
+              Loading configuration...
+            </p>
+          </div>
+
+          {/* Skeleton Loading State */}
+          <div className="space-y-4">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <Card key={i}>
+                <CardContent className="space-y-4 pt-6">
+                  {[1, 2, 3].map((j) => (
+                    <div key={j} className="flex items-center justify-between">
+                      <div className="space-y-2 flex-1">
+                        <div className="h-4 w-32 bg-muted animate-pulse rounded" />
+                        <div className="h-3 w-48 bg-muted/50 animate-pulse rounded" />
+                      </div>
+                      <div className="h-10 w-48 bg-muted animate-pulse rounded" />
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       </DashboardLayout>
     );
@@ -216,6 +271,19 @@ export default function SettingsPage() {
             Sensitive data encrypted with AES-256-GCM
           </p>
         </div>
+
+        {/* RPC Warning */}
+        {localValues['RPC_ENDPOINT'] === 'https://api.mainnet-beta.solana.com' && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-md border border-red-500/30 bg-red-500/5">
+            <Globe className="h-3.5 w-3.5 text-red-500/70" />
+            <p className="text-xs text-muted-foreground">
+              ⚠️ Using public RPC - expect rate limiting (429 errors). Get free premium RPC from{' '}
+              <a href="https://helius.dev" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                Helius
+              </a>
+            </p>
+          </div>
+        )}
 
         {/* Settings Tabs */}
         <Tabs defaultValue="network" className="w-full">
