@@ -9,9 +9,11 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings, TrendingUp, Zap, RefreshCw, DollarSign, Shield, Globe } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Settings, TrendingUp, Zap, RefreshCw, DollarSign, Shield, Globe, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { DEPLOYMENT_STRATEGY_DESCRIPTIONS } from '@/lib/strategy-descriptions';
 
 async function fetchSettings() {
   const res = await fetch('/api/settings');
@@ -252,17 +254,18 @@ export default function SettingsPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-primary flex items-center gap-3">
-            <Settings className="h-8 w-8" />
-            Settings
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Configure your mining bot. Changes take effect immediately.
-          </p>
-        </div>
+      <TooltipProvider delayDuration={200}>
+        <div className="space-y-6">
+          {/* Header */}
+          <div>
+            <h1 className="text-3xl font-bold text-primary flex items-center gap-3">
+              <Settings className="h-8 w-8" />
+              Settings
+            </h1>
+            <p className="text-muted-foreground mt-2">
+              Configure your mining bot. Changes take effect immediately.
+            </p>
+          </div>
 
         {/* Security Notice */}
         <div className="flex items-center gap-2 px-3 py-2 rounded-md border border-yellow-500/30 bg-yellow-500/5">
@@ -305,11 +308,45 @@ export default function SettingsPage() {
               (s: any) => s.category === category
             );
 
+            // Helper to check if a setting should be visible based on dependencies
+            const isSettingVisible = (setting: any) => {
+              // Show INITIAL_AUTOMATION_BUDGET_PCT only when BUDGET_TYPE = 'percentage'
+              if (setting.key === 'INITIAL_AUTOMATION_BUDGET_PCT') {
+                return localValues['BUDGET_TYPE'] === 'percentage';
+              }
+              // Show FIXED_BUDGET_AMOUNT only when BUDGET_TYPE = 'fixed'
+              if (setting.key === 'FIXED_BUDGET_AMOUNT') {
+                return localValues['BUDGET_TYPE'] === 'fixed';
+              }
+              // Show MANUAL_AMOUNT_PER_ROUND only when DEPLOYMENT_AMOUNT_STRATEGY = 'manual'
+              if (setting.key === 'MANUAL_AMOUNT_PER_ROUND') {
+                return localValues['DEPLOYMENT_AMOUNT_STRATEGY'] === 'manual';
+              }
+              // Show TARGET_ROUNDS only when DEPLOYMENT_AMOUNT_STRATEGY = 'fixed_rounds'
+              if (setting.key === 'TARGET_ROUNDS') {
+                return localValues['DEPLOYMENT_AMOUNT_STRATEGY'] === 'fixed_rounds';
+              }
+              // Show BUDGET_PERCENTAGE_PER_ROUND only when DEPLOYMENT_AMOUNT_STRATEGY = 'percentage'
+              if (setting.key === 'BUDGET_PERCENTAGE_PER_ROUND') {
+                return localValues['DEPLOYMENT_AMOUNT_STRATEGY'] === 'percentage';
+              }
+              // Show claim thresholds only when CLAIM_STRATEGY = 'auto'
+              if (
+                setting.key === 'AUTO_CLAIM_SOL_THRESHOLD' ||
+                setting.key === 'AUTO_CLAIM_ORB_THRESHOLD' ||
+                setting.key === 'AUTO_CLAIM_STAKING_ORB_THRESHOLD'
+              ) {
+                return localValues['CLAIM_STRATEGY'] === 'auto';
+              }
+              // All other settings are always visible
+              return true;
+            };
+
             return (
               <TabsContent key={category} value={category} className="space-y-4">
                 <Card>
                   <CardContent className="space-y-6 pt-6">
-                    {categorySettings.map((setting: any) => (
+                    {categorySettings.filter(isSettingVisible).map((setting: any) => (
                       <div key={setting.key} className="space-y-2">
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1">
@@ -395,21 +432,49 @@ export default function SettingsPage() {
                             )}
 
                             {setting.type === 'select' && (
-                              <Select
-                                value={localValues[setting.key] ?? setting.value}
-                                onValueChange={(value) => handleSettingChange(setting.key, value)}
-                              >
-                                <SelectTrigger className="w-full">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {setting.options?.map((opt: any) => (
-                                    <SelectItem key={opt.value} value={opt.value}>
-                                      {opt.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <Select
+                                    value={localValues[setting.key] ?? setting.value}
+                                    onValueChange={(value) => handleSettingChange(setting.key, value)}
+                                  >
+                                    <SelectTrigger className="w-full">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {setting.options?.map((opt: any) => (
+                                        <SelectItem key={opt.value} value={opt.value}>
+                                          {opt.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  {setting.key === 'DEPLOYMENT_AMOUNT_STRATEGY' && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <button
+                                          type="button"
+                                          className="flex items-center justify-center h-9 w-9 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground"
+                                        >
+                                          <Info className="h-4 w-4" />
+                                        </button>
+                                      </TooltipTrigger>
+                                      <TooltipContent
+                                        side="left"
+                                        className="max-w-md whitespace-pre-line text-left p-4"
+                                      >
+                                        {DEPLOYMENT_STRATEGY_DESCRIPTIONS[localValues[setting.key] ?? setting.value] || 'Select a strategy to see details'}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                </div>
+                                {setting.key === 'DEPLOYMENT_AMOUNT_STRATEGY' && (
+                                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                    <Info className="h-3 w-3" />
+                                    Click the info button to see detailed strategy information
+                                  </p>
+                                )}
+                              </div>
                             )}
                           </div>
                         </div>
@@ -439,7 +504,8 @@ export default function SettingsPage() {
             );
           })}
         </Tabs>
-      </div>
+        </div>
+      </TooltipProvider>
     </DashboardLayout>
   );
 }

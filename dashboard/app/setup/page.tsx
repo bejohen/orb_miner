@@ -118,6 +118,24 @@ export default function SetupPage() {
         throw new Error(data.error || 'Failed to save settings');
       }
 
+      // If a new password was set, automatically log in the user
+      if (dashboardPassword.trim() && dashboardPassword !== '********') {
+        try {
+          const loginResponse = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: dashboardPassword.trim() }),
+          });
+
+          if (!loginResponse.ok) {
+            console.warn('Auto-login failed after setup');
+          }
+        } catch (error) {
+          console.warn('Auto-login error:', error);
+          // Non-fatal - user can still log in manually
+        }
+      }
+
       setSuccess(true);
 
       // Redirect to home after 2 seconds

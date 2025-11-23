@@ -27,6 +27,12 @@ import { TransactionInstruction, SystemProgram, PublicKey } from '@solana/web3.j
 import BN from 'bn.js';
 import logger, { ui } from '../utils/logger';
 import {
+  calculateDeploymentAmount,
+  shouldAutoClaim,
+  validateDeploymentStrategy,
+  getStrategyDescription,
+} from '../utils/strategies';
+import {
   initializeDatabase,
   closeDatabase,
   recordTransaction,
@@ -117,86 +123,6 @@ async function getDashboardPort(): Promise<string> {
     // If database query fails, return default
     return '3888';
   }
-}
-
-/**
- * Calculate optimal rounds based on motherload (dynamic EV optimization)
- * Strategy: As motherload grows, deploy MORE per round (fewer total rounds, higher amount per square)
- * This maximizes EV when rewards are high while preserving capital at lower motherloads.
- *
- * Tiers (EXTREME CONSERVATIVE - Monte Carlo optimized for maximum ROI):
- * Based on 10,000-simulation Monte Carlo analysis showing +139% avg ROI vs +74% with previous settings
- * - 0-199 ORB: Maximum conservation (880 rounds, ~0.11% per round)
- * - 200-299 ORB: Extreme conservation (440 rounds, ~0.23% per round)
- * - 300-399 ORB: Ultra conservative (400 rounds, ~0.25% per round)
- * - 400-499 ORB: Very conservative (360 rounds, ~0.28% per round)
- * - 500-599 ORB: Conservative (320 rounds, ~0.31% per round)
- * - 600-699 ORB: Moderate-Conservative (280 rounds, ~0.36% per round)
- * - 700-799 ORB: Moderate (240 rounds, ~0.42% per round)
- * - 800-899 ORB: Moderate-Aggressive (200 rounds, 0.5% per round)
- * - 900-999 ORB: Aggressive (160 rounds, ~0.63% per round)
- * - 1000-1099 ORB: Very aggressive (120 rounds, ~0.83% per round)
- * - 1100-1199 ORB: Very aggressive (90 rounds, ~1.11% per round)
- * - 1200+ ORB: Ultra aggressive (60 rounds, ~1.67% per round)
- */
-function calculateTargetRounds(motherloadOrb: number): number {
-  // Ultra aggressive for massive motherloads (1200+ ORB)
-  if (motherloadOrb >= 1200) {
-    return 60; // ~1.67% of budget per round - +76% ROI per simulation
-  }
-
-  // Very aggressive (1100-1199 ORB)
-  if (motherloadOrb >= 1100) {
-    return 90; // ~1.11% of budget per round - +101% ROI per simulation
-  }
-
-  // Very aggressive (1000-1099 ORB)
-  if (motherloadOrb >= 1000) {
-    return 120; // ~0.83% of budget per round - +125% ROI per simulation
-  }
-
-  // Aggressive (900-999 ORB)
-  if (motherloadOrb >= 900) {
-    return 160; // ~0.63% of budget per round - +146% ROI per simulation
-  }
-
-  // Moderate-Aggressive (800-899 ORB)
-  if (motherloadOrb >= 800) {
-    return 200; // 0.5% of budget per round - +162% ROI per simulation
-  }
-
-  // Moderate (700-799 ORB)
-  if (motherloadOrb >= 700) {
-    return 240; // ~0.42% of budget per round - +172% ROI per simulation (PEAK)
-  }
-
-  // Moderate-Conservative (600-699 ORB)
-  if (motherloadOrb >= 600) {
-    return 280; // ~0.36% of budget per round - +172% ROI per simulation
-  }
-
-  // Conservative (500-599 ORB)
-  if (motherloadOrb >= 500) {
-    return 320; // ~0.31% of budget per round - +165% ROI per simulation
-  }
-
-  // Very conservative (400-499 ORB)
-  if (motherloadOrb >= 400) {
-    return 360; // ~0.28% of budget per round - +151% ROI per simulation
-  }
-
-  // Ultra conservative (300-399 ORB)
-  if (motherloadOrb >= 300) {
-    return 400; // ~0.25% of budget per round - +125% ROI per simulation
-  }
-
-  // Extreme conservation (200-299 ORB)
-  if (motherloadOrb >= 200) {
-    return 440; // ~0.23% of budget per round
-  }
-
-  // Maximum conservation (below 200 ORB)
-  return 880; // ~0.11% of budget per round - extremely small bets on minimal rewards
 }
 
 /**
@@ -361,12 +287,29 @@ async function autoSetupAutomation(): Promise<boolean> {
     const solBalance = await getSolBalance();
     ui.status('Wallet Balance', `${solBalance.toFixed(4)} SOL`);
 
-    // Calculate usable budget
-    const usableBudget = solBalance * (config.initialAutomationBudgetPct / 100);
-    ui.status('Allocating', `${usableBudget.toFixed(4)} SOL (${config.initialAutomationBudgetPct}%)`);
+    // Calculate usable budget based on budget type
+    let usableBudget: number;
+    let budgetDescription: string;
+
+    if (config.budgetType === 'fixed') {
+      usableBudget = config.fixedBudgetAmount;
+      budgetDescription = `${usableBudget.toFixed(4)} SOL (fixed amount)`;
+
+      // Check if we have enough SOL for the fixed amount
+      if (solBalance < usableBudget) {
+        ui.error(`Insufficient balance - wallet has ${solBalance.toFixed(4)} SOL but fixed budget is ${usableBudget.toFixed(4)} SOL`);
+        return false;
+      }
+    } else {
+      // Default: percentage-based budget
+      usableBudget = solBalance * (config.initialAutomationBudgetPct / 100);
+      budgetDescription = `${usableBudget.toFixed(4)} SOL (${config.initialAutomationBudgetPct}%)`;
+    }
+
+    ui.status('Allocating', budgetDescription);
 
     if (usableBudget < 0.5) {
-      ui.error('Insufficient balance - need at least 0.56 SOL');
+      ui.error('Insufficient budget - need at least 0.5 SOL for automation');
       return false;
     }
 
@@ -375,13 +318,34 @@ async function autoSetupAutomation(): Promise<boolean> {
     const motherloadOrb = Number(treasury.motherlode) / 1e9;
     ui.status('Current Motherload', `${motherloadOrb.toFixed(2)} ORB`);
 
-    // Calculate target rounds based on motherload
-    const targetRounds = calculateTargetRounds(motherloadOrb);
-    const totalSquares = targetRounds * 25;
-    const solPerSquare = usableBudget / totalSquares;
-    const solPerRound = solPerSquare * 25;
+    // Calculate deployment amount using selected strategy
+    const deploymentCalc = calculateDeploymentAmount({
+      strategy: config.deploymentAmountStrategy,
+      usableBudget,
+      motherloadOrb,
+      manualAmountPerRound: config.manualAmountPerRound,
+      targetRounds: config.targetRounds,
+      budgetPercentagePerRound: config.budgetPercentagePerRound,
+    });
 
-    ui.status('Strategy', `${targetRounds} rounds @ ${solPerRound.toFixed(4)} SOL/round`);
+    // Validate strategy configuration
+    const validation = validateDeploymentStrategy({
+      strategy: config.deploymentAmountStrategy,
+      usableBudget,
+      motherloadOrb,
+      manualAmountPerRound: config.manualAmountPerRound,
+      targetRounds: config.targetRounds,
+      budgetPercentagePerRound: config.budgetPercentagePerRound,
+    });
+
+    if (!validation.valid) {
+      ui.error(`Invalid strategy configuration: ${validation.error}`);
+      return false;
+    }
+
+    const { solPerSquare } = deploymentCalc;
+
+    ui.status('Strategy', getStrategyDescription(deploymentCalc));
 
     if (config.dryRun) {
       logger.info('[DRY RUN] Would create automation account');
@@ -418,7 +382,7 @@ async function autoSetupAutomation(): Promise<boolean> {
       setupMotherload: motherloadOrb,
       setupTimestamp: Date.now(),
       setupRoundId: board.roundId.toNumber(),
-      notes: `Setup with ${targetRounds} rounds @ ${solPerRound.toFixed(4)} SOL/round`,
+      notes: `Setup: ${deploymentCalc.notes}`,
     });
     logger.debug('Persisted automation setup state to disk');
 
@@ -431,7 +395,7 @@ async function autoSetupAutomation(): Promise<boolean> {
         signature,
         solAmount: deposit,
         status: 'success',
-        notes: `Setup with ${targetRounds} rounds @ ${solPerRound.toFixed(4)} SOL/round (motherload: ${motherloadOrb.toFixed(2)} ORB)`,
+        notes: `Setup: ${deploymentCalc.notes} (motherload: ${motherloadOrb.toFixed(2)} ORB)`,
         orbPriceUsd,
         txFeeSol: actualFee,
       });
@@ -638,6 +602,23 @@ async function autoClaimMiningRewards(): Promise<void> {
     const miningSolBefore = Number(updatedMiner.rewardsSol) / 1e9;
     const miningOrbBefore = Number(updatedMiner.rewardsOre) / 1e9;
 
+    // Check if should auto-claim based on strategy
+    const shouldClaim = shouldAutoClaim(
+      {
+        strategy: config.claimStrategy,
+        autoClaimSolThreshold: config.autoClaimSolThreshold,
+        autoClaimOrbThreshold: config.autoClaimOrbThreshold,
+      },
+      miningSolBefore,
+      miningOrbBefore,
+      false // not staking rewards
+    );
+
+    if (!shouldClaim) {
+      logger.debug(`Claim strategy ${config.claimStrategy}: not claiming yet`);
+      return;
+    }
+
     // Auto-claim SOL
     if (miningSolBefore >= config.autoClaimSolThreshold) {
       ui.claim(`Claiming ${miningSolBefore.toFixed(4)} SOL (mining rewards)`);
@@ -762,6 +743,22 @@ async function autoClaimStakingRewards(): Promise<void> {
 
       // Use the higher of realized or accrued rewards for claiming
       const claimableOrbRewards = Math.max(realizedOrbRewards, accruedOrbRewards);
+
+      // Check if should auto-claim based on strategy
+      const shouldClaim = shouldAutoClaim(
+        {
+          strategy: config.claimStrategy,
+          autoClaimStakingOrbThreshold: config.autoClaimStakingOrbThreshold,
+        },
+        0, // no SOL from staking
+        claimableOrbRewards,
+        true // staking rewards
+      );
+
+      if (!shouldClaim) {
+        logger.debug(`Claim strategy ${config.claimStrategy}: not claiming staking rewards yet`);
+        return;
+      }
 
       if (stakedAmount > 0 && claimableOrbRewards >= config.autoClaimStakingOrbThreshold && !config.dryRun) {
         logger.debug(`Staking: ${stakedAmount.toFixed(2)} ORB staked, ${claimableOrbRewards.toFixed(4)} ORB claimable (realized: ${realizedOrbRewards.toFixed(4)}, accrued: ${accruedOrbRewards.toFixed(4)})`);
