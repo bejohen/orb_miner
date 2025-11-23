@@ -39,6 +39,32 @@ function calculateTargetRoundsAuto(motherloadOrb: number): number {
 }
 
 /**
+ * Calculate deployment amount using auto-doubling strategy
+ *
+ * Starts with a base amount and doubles it for every interval increase in motherload.
+ * Example: startAmount = 0.0001, interval = 100
+ * - 0-99 ORB: 0.0001 SOL/round
+ * - 100-199 ORB: 0.0002 SOL/round
+ * - 200-299 ORB: 0.0004 SOL/round
+ * - 300-399 ORB: 0.0008 SOL/round
+ * etc.
+ */
+function calculateAmountAutoDoubling(
+  motherloadOrb: number,
+  startAmount: number,
+  interval: number
+): number {
+  // Calculate how many intervals we've passed
+  const tier = Math.floor(motherloadOrb / interval);
+
+  // Double the amount for each tier
+  // Use Math.pow(2, tier) to calculate 2^tier
+  const multiplier = Math.pow(2, tier);
+
+  return startAmount * multiplier;
+}
+
+/**
  * Calculate deployment amount based on selected strategy
  *
  * @param config - Strategy configuration with all necessary parameters
@@ -122,6 +148,30 @@ export function calculateDeploymentAmount(
         estimatedRounds,
         strategyUsed: DeploymentAmountStrategy.PERCENTAGE,
         notes: `Percentage: ${percentage}% of budget per round`,
+      };
+    }
+
+    case DeploymentAmountStrategy.AUTO_DOUBLING: {
+      // Auto-doubling strategy based on motherload tiers
+      const startAmount = config.autoDoublingStartAmount || 0.0001;
+      const interval = config.autoDoublingInterval || 100;
+      const solPerRound = calculateAmountAutoDoubling(motherloadOrb, startAmount, interval);
+      const solPerSquare = solPerRound / 25;
+      const estimatedRounds = Math.floor(usableBudget / solPerRound);
+
+      const tier = Math.floor(motherloadOrb / interval);
+      logger.info(
+        `Using AUTO_DOUBLING strategy: ${solPerRound.toFixed(6)} SOL per round ` +
+        `(tier ${tier}, motherload: ${motherloadOrb.toFixed(2)} ORB)`
+      );
+
+      return {
+        solPerSquare,
+        solPerRound,
+        totalSquares: 25,
+        estimatedRounds,
+        strategyUsed: DeploymentAmountStrategy.AUTO_DOUBLING,
+        notes: `Auto Doubling (tier ${tier}): ${solPerRound.toFixed(6)} SOL per round at ${motherloadOrb.toFixed(2)} ORB motherload`,
       };
     }
 
@@ -250,6 +300,21 @@ export function validateDeploymentStrategy(
         return {
           valid: false,
           error: 'PERCENTAGE strategy: budgetPercentagePerRound cannot exceed 100%',
+        };
+      }
+      break;
+
+    case DeploymentAmountStrategy.AUTO_DOUBLING:
+      if (!config.autoDoublingStartAmount || config.autoDoublingStartAmount <= 0) {
+        return {
+          valid: false,
+          error: 'AUTO_DOUBLING strategy requires autoDoublingStartAmount > 0',
+        };
+      }
+      if (config.autoDoublingInterval && config.autoDoublingInterval <= 0) {
+        return {
+          valid: false,
+          error: 'AUTO_DOUBLING strategy requires autoDoublingInterval > 0',
         };
       }
       break;
