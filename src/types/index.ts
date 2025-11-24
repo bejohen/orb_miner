@@ -11,6 +11,7 @@ export interface Board {
 // Round account - tracks game state for a round
 export interface Round {
   deployed: BN[];       // Array of 25 u64 values (SOL deployed per square)
+  count: BN[];          // Array of 25 u64 values (number of miners per square)
   motherload: BN;       // ORE vault balance for this round
   totalDeployed: BN;    // Total SOL deployed across all squares
   totalWinnings: BN;    // Total winnings distributed

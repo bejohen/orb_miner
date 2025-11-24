@@ -2,13 +2,17 @@ import { NextResponse } from 'next/server';
 import { ensureBotInitialized } from '@/lib/init-bot';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { config, loadAndCacheConfig } from '@bot/utils/config';
-import { fetchBoard, fetchMiner, fetchStake, fetchTreasury, getAutomationPDA, calculateAccruedStakingRewards } from '@bot/utils/accounts';
+import { fetchBoard, fetchMiner, fetchStake, fetchTreasury, fetchRound, getAutomationPDA, calculateAccruedStakingRewards } from '@bot/utils/accounts';
 import { getWallet, getBalances } from '@bot/utils/wallet';
 import { getOrbPrice } from '@bot/utils/jupiter';
 import { isMaintenanceMode, MAINTENANCE_RESPONSE } from '@/lib/maintenance';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+
+// Cache for unique miners count (updates every 30 seconds)
+let minerCountCache: { count: number; roundId: string; timestamp: number } = { count: 0, roundId: '', timestamp: 0 };
+const MINER_COUNT_CACHE_TTL = 30000; // 30 seconds
 
 export async function GET() {
   try {
@@ -37,6 +41,66 @@ export async function GET() {
       getBalances(walletPublicKey),
       getOrbPrice().catch(() => ({ priceInSol: 0, priceInUsd: 0 })),
     ]);
+
+    // Fetch current round data
+    let round = null;
+    try {
+      round = await fetchRound(board.roundId);
+    } catch (error) {
+      console.error('Error fetching round data:', error);
+    }
+
+    // Count unique miners in current round (with caching)
+    let uniqueMinersCount = 0;
+    const currentRoundId = board.roundId.toString();
+    const now = Date.now();
+
+    // Check if cache is valid (same round and not expired)
+    if (minerCountCache.roundId === currentRoundId && (now - minerCountCache.timestamp) < MINER_COUNT_CACHE_TTL) {
+      uniqueMinersCount = minerCountCache.count;
+    } else {
+      // Cache expired or different round - fetch fresh data
+      try {
+        const ORB_PROGRAM_ID = new PublicKey(config.orbProgramId);
+
+        // Import base58 encoder from @solana/web3.js
+        const { encode: bs58encode } = await import('bs58');
+
+        const MINER_DISCRIMINATOR = Buffer.from([103, 0, 0, 0, 0, 0, 0, 0]); // Miner account discriminator
+        const roundIdBuffer = board.roundId.toArrayLike(Buffer, 'le', 8);
+
+        const minerAccounts = await connection.getProgramAccounts(ORB_PROGRAM_ID, {
+          filters: [
+            {
+              memcmp: {
+                offset: 0,
+                bytes: bs58encode(MINER_DISCRIMINATOR),
+              },
+            },
+            {
+              memcmp: {
+                offset: 512, // roundId offset in Miner struct (8 + 504 = 512 absolute)
+                bytes: bs58encode(roundIdBuffer),
+              },
+            },
+          ],
+          dataSlice: { offset: 0, length: 0 }, // Only fetch account keys, not data
+        });
+
+        uniqueMinersCount = minerAccounts.length;
+
+        // Update cache
+        minerCountCache = {
+          count: uniqueMinersCount,
+          roundId: currentRoundId,
+          timestamp: now,
+        };
+      } catch (error) {
+        console.error('Error counting unique miners:', error);
+        // Fallback: estimate based on active squares (rough estimate)
+        uniqueMinersCount = round ? Math.ceil(round.deployed.filter(amt => Number(amt) > 0).length * 1.2) : 0;
+      }
+    }
 
     // Calculate claimable rewards
     const claimableSol = miner ? Number(miner.rewardsSol) / 1e9 : 0;
@@ -79,6 +143,10 @@ export async function GET() {
         motherlode: treasury ? Number(treasury.motherlode) / 1e9 : 0,
         startSlot: board.startSlot.toString(),
         endSlot: board.endSlot.toString(),
+        totalDeployed: round ? Number(round.totalDeployed) / 1e9 : 0,
+        activeSquares: round ? round.deployed.filter(amt => Number(amt) > 0).length : 0,
+        uniqueMiners: uniqueMinersCount,
+        totalDeployments: round ? round.count.reduce((sum, count) => sum + Number(count), 0) : 0,
       },
 
       // Wallet balances

@@ -74,7 +74,7 @@ export default function Home() {
   const { data: status, isLoading: statusLoading } = useQuery({
     queryKey: ['status'],
     queryFn: fetchStatus,
-    refetchInterval: 10000,
+    refetchInterval: 2500, // Update every 2.5 seconds for round stats
   });
 
   const { data: pnl, isLoading: pnlLoading } = useQuery({
@@ -309,23 +309,56 @@ export default function Home() {
             </div>
 
             {/* Metrics Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 lg:gap-4">
-              <div className="bg-gradient-to-br from-emerald-500/10 to-transparent border border-emerald-500/20 rounded-lg p-3 lg:p-4">
-                <p className="text-[10px] text-emerald-400/80 uppercase tracking-wide mb-1.5 font-semibold">ORB Earned</p>
-                <p className="text-2xl font-black text-emerald-400 mb-0.5">{(pnl?.breakdown?.income?.orbFromMining || 0).toFixed(2)}</p>
-                <p className="text-[9px] text-muted-foreground/60">(before 10% fee)</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 lg:gap-3 mb-3 lg:mb-4">
+              <div className="bg-gradient-to-br from-emerald-500/10 to-transparent border border-emerald-500/20 rounded-lg p-2 lg:p-2.5">
+                <p className="text-[9px] text-emerald-400/60 uppercase tracking-wide mb-0.5 font-semibold">ORB Earned</p>
+                <p className="text-xs font-bold text-emerald-400 mb-0.5">{(pnl?.breakdown?.income?.orbFromMining || 0).toFixed(2)}</p>
+                <p className="text-[8px] text-muted-foreground/50">(before 10% fee)</p>
               </div>
 
-              <div className="bg-gradient-to-br from-purple-500/10 to-transparent border border-purple-500/20 rounded-lg p-3 lg:p-4">
-                <p className="text-[10px] text-purple-400/80 uppercase tracking-wide mb-1.5 font-semibold">ORB Swapped</p>
-                <p className="text-2xl font-black text-purple-400 mb-0.5">{(pnl?.breakdown?.income?.orbSwappedCount || 0).toFixed(2)}</p>
-                <p className="text-[9px] text-muted-foreground/60">(converted to SOL)</p>
+              <div className="bg-gradient-to-br from-purple-500/10 to-transparent border border-purple-500/20 rounded-lg p-2 lg:p-2.5">
+                <p className="text-[9px] text-purple-400/60 uppercase tracking-wide mb-0.5 font-semibold">ORB Swapped</p>
+                <p className="text-xs font-bold text-purple-400 mb-0.5">{(pnl?.breakdown?.income?.orbSwappedCount || 0).toFixed(2)}</p>
+                <p className="text-[8px] text-muted-foreground/50">(converted to SOL)</p>
               </div>
 
-              <div className="bg-gradient-to-br from-red-500/10 to-transparent border border-red-500/20 rounded-lg p-3 lg:p-4">
-                <p className="text-[10px] text-red-400/80 uppercase tracking-wide mb-1.5 font-semibold">Total Fees</p>
-                <p className="text-2xl font-black text-red-400 mb-0.5">{(pnl?.summary?.totalExpenses || 0).toFixed(4)}</p>
-                <p className="text-[9px] text-muted-foreground/60">SOL (all costs)</p>
+              <div className="bg-gradient-to-br from-red-500/10 to-transparent border border-red-500/20 rounded-lg p-2 lg:p-2.5">
+                <p className="text-[9px] text-red-400/60 uppercase tracking-wide mb-0.5 font-semibold">Total Fees</p>
+                <p className="text-xs font-bold text-red-400 mb-0.5">{(pnl?.summary?.totalExpenses || 0).toFixed(4)}</p>
+                <p className="text-[8px] text-muted-foreground/50">SOL (all costs)</p>
+              </div>
+            </div>
+
+            {/* Current Round Stats */}
+            <div className="border-t border-primary/20 pt-3 lg:pt-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Activity className="h-3 w-3 text-blue-400" />
+                <p className="text-[10px] text-blue-400/80 uppercase tracking-wide font-semibold">Current Round #{status?.round?.id || 'N/A'}</p>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 lg:gap-3">
+                <div className="bg-gradient-to-br from-blue-500/5 to-transparent border border-blue-500/10 rounded p-2 lg:p-2.5">
+                  <p className="text-[9px] text-blue-400/60 uppercase tracking-wide mb-0.5">Unique Miners</p>
+                  <p className="text-xs font-bold text-blue-400">{status?.round?.uniqueMiners || 0}</p>
+                  <p className="text-[8px] text-muted-foreground/50">{status?.round?.totalDeployments || 0} txs</p>
+                </div>
+
+                <div className="bg-gradient-to-br from-amber-500/5 to-transparent border border-amber-500/10 rounded p-2 lg:p-2.5">
+                  <p className="text-[9px] text-amber-400/60 uppercase tracking-wide mb-0.5">Total Deployed</p>
+                  <p className="text-xs font-bold text-amber-400">{(status?.round?.totalDeployed || 0).toFixed(2)}</p>
+                  <p className="text-[8px] text-muted-foreground/50">SOL in round</p>
+                </div>
+
+                <div className="bg-gradient-to-br from-cyan-500/5 to-transparent border border-cyan-500/10 rounded p-2 lg:p-2.5">
+                  <p className="text-[9px] text-cyan-400/60 uppercase tracking-wide mb-0.5">Active Squares</p>
+                  <p className="text-xs font-bold text-cyan-400">{status?.round?.activeSquares || 0}/25</p>
+                  <p className="text-[8px] text-muted-foreground/50">with deposits</p>
+                </div>
+
+                <div className="bg-gradient-to-br from-violet-500/5 to-transparent border border-violet-500/10 rounded p-2 lg:p-2.5">
+                  <p className="text-[9px] text-violet-400/60 uppercase tracking-wide mb-0.5">Motherlode</p>
+                  <p className="text-xs font-bold text-violet-400">{(status?.round?.motherlode || 0).toFixed(2)}</p>
+                  <p className="text-[8px] text-muted-foreground/50">ORB rewards</p>
+                </div>
               </div>
             </div>
           </CardContent>

@@ -51,9 +51,6 @@ import {
 } from '../utils/database';
 import {
   getCompletePnLSummary,
-  formatSol,
-  formatOrb,
-  formatPercent,
 } from '../utils/pnl';
 import { loadState, saveState, clearState } from '../utils/state';
 
@@ -480,7 +477,7 @@ async function displayQuickPnL(
     const solPriceUsd = orbPriceUsd / orbPriceSol; // Derive SOL price from ORB price
 
     // Get complete PnL summary using unified system
-    const pnl = await getCompletePnLSummary(
+    await getCompletePnLSummary(
       balances.sol,
       automationBalance,
       claimableSol,
@@ -491,7 +488,7 @@ async function displayQuickPnL(
       solPriceUsd
     );
 
-    // PnL data is still calculated for UI and database tracking
+    // PnL data is calculated for UI and database tracking
     // Display removed since UI now shows this information
   } catch (error) {
     logger.debug('Failed to display unified PnL:', error);

@@ -213,6 +213,7 @@ export async function fetchRound(roundId: BN): Promise<Round> {
     id: deserializeU64(data, 8),                // Round ID
     deployed: deserializeU64Array25(data, 16),  // SOL deployed per square (200 bytes)
     slotHash: data.slice(216, 248),             // Slot hash (32 bytes)
+    count: deserializeU64Array25(data, 248),    // Miner count per square (200 bytes)
     expireSlot: deserializeU64(data, 448),      // Expires at
     motherload: deserializeU64(data, 456),      // Motherload (CORRECT OFFSET)
     totalDeployed: deserializeU64(data, 536),   // Total deployed
