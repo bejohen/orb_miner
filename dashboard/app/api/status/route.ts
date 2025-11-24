@@ -134,6 +134,54 @@ export async function GET() {
       }
     }
 
+    // Calculate mining premium/discount if miner has active deployments
+    let miningPremium = null;
+    if (miner && miner.deployed.some((amt) => Number(amt) > 0) && orbPrice.priceInSol > 0 && round) {
+      try {
+        const totalDeployedByMiner = miner.deployed.reduce((sum, amt) => sum + Number(amt), 0) / 1e9;
+        const totalDeployedInRound = round.deployed.reduce((sum, amt) => sum + Number(amt), 0) / 1e9;
+        const motherloadOrb = treasury ? Number(treasury.motherlode) / 1e9 : 0;
+
+        // Calculate your share of total deployment
+        const yourShare = totalDeployedInRound > 0
+          ? totalDeployedByMiner / (totalDeployedInRound + totalDeployedByMiner)
+          : 0;
+
+        // Calculate expected ORB rewards
+        const baseRewardExpected = yourShare * 4; // 4 ORB base reward per round
+        const motherloadChance = 1 / 625;
+        const motherloadExpected = motherloadChance * yourShare * motherloadOrb;
+        const expectedOrbRewards = (baseRewardExpected + motherloadExpected) * 0.9; // After 10% refining fee
+
+        if (expectedOrbRewards > 0) {
+          // Production cost per ORB = NET COST (fees paid) / Expected ORB
+          // You get back ~95% of deployment on average, so net cost is ~5%
+          const expectedSolBack = totalDeployedByMiner * 0.95;
+          const netCost = totalDeployedByMiner - expectedSolBack; // Fees paid
+          const productionCostPerOrb = netCost / expectedOrbRewards;
+
+          // Mining premium ratio = (Production Cost / Market Price) × 100
+          const miningPremiumRatio = (productionCostPerOrb / orbPrice.priceInSol) * 100;
+
+          // Discount/Premium percentage (negative = discount, positive = premium)
+          const discountOrPremium = 100 - miningPremiumRatio;
+
+          miningPremium = {
+            productionCostPerOrb, // in SOL
+            productionCostPerOrbUsd: productionCostPerOrb * (orbPrice.priceInUsd / orbPrice.priceInSol), // in USD
+            miningPremiumRatio, // percentage
+            discountOrPremium, // negative = discount, positive = premium
+            expectedOrbRewards,
+            yourShare: yourShare * 100, // as percentage
+            totalDeployedByMiner, // Total SOL deployed
+            netCost, // Net cost (fees)
+          };
+        }
+      } catch (error) {
+        console.error('Error calculating mining premium:', error);
+      }
+    }
+
     const status = {
       timestamp: new Date().toISOString(),
 
@@ -187,6 +235,9 @@ export async function GET() {
         totalDeployed: miner.deployed.reduce((sum, amt) => sum + Number(amt), 0) / 1e9,
         activeSquares: miner.deployed.filter((amt) => Number(amt) > 0).length,
       } : null,
+
+      // Mining premium/discount calculation
+      miningPremium,
 
       // Treasury info
       treasury: treasury ? {

@@ -396,30 +396,79 @@ export default function Home() {
                     <Zap className="h-3 w-3 text-green-400" />
                     <p className="text-[10px] text-green-400/80 uppercase tracking-wide font-semibold">Your Deployment This Round</p>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 lg:gap-3">
-                    <div className="bg-gradient-to-br from-green-500/10 to-transparent border border-green-500/20 rounded p-2 lg:p-2.5">
-                      <p className="text-[9px] text-green-400/60 uppercase tracking-wide mb-0.5">Your Total</p>
-                      <p className="text-xs font-bold text-green-400">{(status.miner.totalDeployed || 0).toFixed(4)}</p>
-                      <p className="text-[8px] text-muted-foreground/50">SOL deployed</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 lg:gap-2">
+                    <div className="bg-gradient-to-br from-green-500/10 to-transparent border border-green-500/20 rounded p-1.5 lg:p-2">
+                      <p className="text-[8px] text-green-400/60 uppercase tracking-wide mb-0.5">Your Total</p>
+                      <p className="text-[10px] font-bold text-green-400">{(status.miner.totalDeployed || 0).toFixed(4)}</p>
+                      <p className="text-[7px] text-muted-foreground/50">SOL deployed</p>
                     </div>
 
-                    <div className="bg-gradient-to-br from-green-500/10 to-transparent border border-green-500/20 rounded p-2 lg:p-2.5">
-                      <p className="text-[9px] text-green-400/60 uppercase tracking-wide mb-0.5">Your Squares</p>
-                      <p className="text-xs font-bold text-green-400">{status.miner.activeSquares || 0}/25</p>
-                      <p className="text-[8px] text-muted-foreground/50">active positions</p>
+                    <div className="bg-gradient-to-br from-green-500/10 to-transparent border border-green-500/20 rounded p-1.5 lg:p-2">
+                      <p className="text-[8px] text-green-400/60 uppercase tracking-wide mb-0.5">Your Squares</p>
+                      <p className="text-[10px] font-bold text-green-400">{status.miner.activeSquares || 0}/25</p>
+                      <p className="text-[7px] text-muted-foreground/50">active positions</p>
                     </div>
 
-                    <div className="bg-gradient-to-br from-green-500/10 to-transparent border border-green-500/20 rounded p-2 lg:p-2.5">
-                      <p className="text-[9px] text-green-400/60 uppercase tracking-wide mb-0.5">Your Share</p>
-                      <p className="text-xs font-bold text-green-400">
+                    <div className="bg-gradient-to-br from-green-500/10 to-transparent border border-green-500/20 rounded p-1.5 lg:p-2">
+                      <p className="text-[8px] text-green-400/60 uppercase tracking-wide mb-0.5">Your Share</p>
+                      <p className="text-[10px] font-bold text-green-400">
                         {status.round.totalDeployed > 0
                           ? ((status.miner.totalDeployed / status.round.totalDeployed) * 100).toFixed(2)
                           : '0'
                         }%
                       </p>
-                      <p className="text-[8px] text-muted-foreground/50">of round total</p>
+                      <p className="text-[7px] text-muted-foreground/50">of round total</p>
                     </div>
                   </div>
+
+                  {/* Mining Premium/Discount */}
+                  {status.miningPremium && (
+                    <div className="mt-2 pt-2 border-t border-blue-500/20">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 lg:gap-2">
+                        <div className={cn(
+                          "bg-gradient-to-br to-transparent border rounded p-1.5 lg:p-2",
+                          status.miningPremium.discountOrPremium > 0
+                            ? "from-green-500/10 border-green-500/20"
+                            : "from-red-500/10 border-red-500/20"
+                        )}>
+                          <p className="text-[8px] text-muted-foreground/60 uppercase tracking-wide mb-0.5">Mining Premium</p>
+                          <p className={cn(
+                            "text-[10px] font-bold mb-0.5",
+                            status.miningPremium.discountOrPremium > 0 ? "text-green-400" : "text-red-400"
+                          )}>
+                            {status.miningPremium.discountOrPremium > 0 ? '' : ''}
+                            {Math.abs(status.miningPremium.discountOrPremium).toFixed(2)}%
+                            <span className="text-[8px] font-normal ml-1 opacity-60">
+                              {status.miningPremium.discountOrPremium > 0 ? 'DISCOUNT' : 'PREMIUM'}
+                            </span>
+                          </p>
+                          <p className="text-[7px] text-muted-foreground/50">
+                            {status.miningPremium.discountOrPremium > 0 ? 'Mining is cheaper' : 'Buying is cheaper'}
+                          </p>
+                        </div>
+
+                        <div className="bg-gradient-to-br from-blue-500/10 to-transparent border border-blue-500/20 rounded p-1.5 lg:p-2">
+                          <p className="text-[8px] text-blue-400/60 uppercase tracking-wide mb-0.5">Production Cost</p>
+                          <p className="text-[10px] font-bold text-blue-400 mb-0.5">
+                            ${status.miningPremium.productionCostPerOrbUsd.toFixed(2)}
+                          </p>
+                          <p className="text-[7px] text-muted-foreground/50">
+                            {status.miningPremium.productionCostPerOrb.toFixed(6)} SOL per ORB
+                          </p>
+                        </div>
+
+                        <div className="bg-gradient-to-br from-purple-500/5 to-transparent border border-purple-500/10 rounded p-1.5 lg:p-2">
+                          <p className="text-[8px] text-purple-400/60 uppercase tracking-wide mb-0.5">Expected ORB Rewards</p>
+                          <p className="text-[10px] font-bold text-purple-400">
+                            {status.miningPremium.expectedOrbRewards.toFixed(4)} ORB
+                          </p>
+                          <p className="text-[7px] text-muted-foreground/50">
+                            ({status.miningPremium.yourShare.toFixed(2)}% share)
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
