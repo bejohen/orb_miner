@@ -274,6 +274,20 @@ pm2 save
 
 When new features are released, update your bot safely:
 
+**Quick Update (Recommended):**
+```bash
+cd ~/orb_miner
+git pull
+npm run update  # Installs deps, rebuilds, auto-restarts PM2 if running
+```
+
+The `npm run update` script automatically:
+- ✅ Installs/updates dependencies (root + dashboard)
+- ✅ Clears Next.js cache
+- ✅ Rebuilds TypeScript
+- ✅ Restarts PM2 processes if running (orb-bot & orb-dashboard)
+
+**Manual Update (Alternative):**
 ```bash
 cd ~/orb_miner
 

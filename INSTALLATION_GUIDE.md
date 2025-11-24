@@ -650,6 +650,39 @@ notepad logs\combined.log
 
 The developers regularly release updates with bug fixes and new features.
 
+### Quick Update Method (Recommended)
+
+**For most users, this is the easiest way to update:**
+
+```bash
+# 1. Stop the bot (if running without PM2)
+# Press Ctrl + C in terminal
+
+# 2. Pull latest changes
+cd orb_miner
+git pull
+
+# 3. Run automated update
+npm run update
+
+# 4. Restart if not using PM2
+npm start
+```
+
+**What `npm run update` does:**
+- ✅ Installs/updates all dependencies (root + dashboard)
+- ✅ Clears Next.js cache
+- ✅ Rebuilds TypeScript code
+- ✅ Automatically restarts PM2 processes (if you're using PM2)
+
+**Your configuration is preserved!** Settings are stored in the database, not in code files.
+
+---
+
+### Manual Update Method (Alternative)
+
+If you prefer to run each step manually or need to troubleshoot:
+
 ### Step 1: Stop the Bot
 
 Press `Ctrl + C` in the terminal where bot is running.
@@ -852,6 +885,14 @@ Shows real-time CPU/memory usage. Press `Ctrl + C` to exit.
 
 When you need to update:
 
+**Quick Method (Recommended):**
+```bash
+cd ~/orb_miner
+git pull
+npm run update  # Auto-handles PM2 restart
+```
+
+**Manual Method:**
 ```bash
 cd ~/orb_miner
 git pull
