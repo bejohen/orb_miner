@@ -38,6 +38,7 @@ export default function Transactions() {
       deploy: 'bg-blue-500/20 text-blue-500 border-blue-500/50',
       claim_sol: 'bg-green-500/20 text-green-500 border-green-500/50',
       claim_orb: 'bg-emerald-500/20 text-emerald-500 border-emerald-500/50',
+      claim_yield: 'bg-teal-500/20 text-teal-500 border-teal-500/50',
       swap: 'bg-purple-500/20 text-purple-500 border-purple-500/50',
       stake: 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50',
       automation_setup: 'bg-cyan-500/20 text-cyan-500 border-cyan-500/50',

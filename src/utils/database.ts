@@ -278,7 +278,7 @@ export async function closeDatabase(): Promise<void> {
 // ============================================================================
 
 export interface TransactionRecord {
-  type: 'deploy' | 'claim_sol' | 'claim_orb' | 'swap' | 'stake' | 'unstake' | 'automation_setup' | 'automation_close' | 'checkpoint_return' | 'baseline';
+  type: 'deploy' | 'claim_sol' | 'claim_orb' | 'claim_yield' | 'swap' | 'stake' | 'unstake' | 'automation_setup' | 'automation_close' | 'checkpoint_return' | 'baseline';
   signature?: string;
   roundId?: number;
   solAmount?: number;

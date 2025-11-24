@@ -822,7 +822,7 @@ async function autoClaimStakingRewards(): Promise<void> {
               // Record only if actually claimed (> 0)
               if (actualOrbClaimed > 0.0001) {
                 await recordTransaction({
-                  type: 'claim_orb',
+                  type: 'claim_yield',
                   signature,
                   orbAmount: actualOrbClaimed,
                   status: 'success',
