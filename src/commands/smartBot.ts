@@ -1056,8 +1056,8 @@ async function autoSwapCheck(): Promise<void> {
 async function priceBasedStaking(): Promise<void> {
   try {
     const now = Date.now();
-    if (now - lastStakeCheck < config.checkRewardsIntervalMs * 2) {
-      return; // Check less frequently than claims
+    if (now - lastStakeCheck < config.priceStakingCheckIntervalMs) {
+      return; // Check based on independent interval
     }
     lastStakeCheck = now;
 
@@ -1163,8 +1163,8 @@ async function autoStakeOrb(): Promise<void> {
     }
 
     const now = Date.now();
-    if (now - lastStakeCheck < config.checkRewardsIntervalMs * 2) {
-      return; // Check less frequently than claims
+    if (now - lastStakeCheck < config.priceStakingCheckIntervalMs) {
+      return; // Use same check interval as price-based staking
     }
     lastStakeCheck = now;
 

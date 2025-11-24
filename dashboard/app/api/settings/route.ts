@@ -408,6 +408,17 @@ export const SETTINGS_DEFINITIONS: SettingDefinition[] = [
     step: 5,
     category: 'stake',
   },
+  {
+    key: 'PRICE_STAKING_CHECK_INTERVAL_MS',
+    type: 'number',
+    label: 'Price Check Interval (ms)',
+    description: 'How often to check price for staking/unstaking decisions',
+    defaultValue: 120000,
+    min: 30000,
+    max: 600000,
+    step: 30000,
+    category: 'stake',
+  },
 
   // Fee Settings
   {

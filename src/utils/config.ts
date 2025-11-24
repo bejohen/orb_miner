@@ -75,6 +75,7 @@ export interface Config {
   // Smart Bot - Price-Based Staking (overrides amount-based when enabled)
   priceBasedStakingEnabled: boolean;
   stakingPriceThresholdUsd: number;
+  priceStakingCheckIntervalMs: number;
 
   // Auto-Deploy Settings (legacy)
   autoDeployIterations: number;
@@ -192,6 +193,7 @@ export async function loadConfigWithDB(): Promise<Config> {
       // Smart Bot - Price-Based Staking
       priceBasedStakingEnabled: getBooleanSetting(dbSettings, 'PRICE_BASED_STAKING_ENABLED', false),
       stakingPriceThresholdUsd: getNumberSetting(dbSettings, 'STAKING_PRICE_THRESHOLD_USD', 30),
+      priceStakingCheckIntervalMs: getNumberSetting(dbSettings, 'PRICE_STAKING_CHECK_INTERVAL_MS', 120000),
 
       // Auto-Deploy Settings (legacy)
       autoDeployIterations: getNumberSetting(dbSettings, 'AUTO_DEPLOY_ITERATIONS', 0),

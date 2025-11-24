@@ -168,6 +168,7 @@ export async function initializeDefaultSettings(): Promise<void> {
       // Smart Bot - Price-Based Staking
       { key: 'PRICE_BASED_STAKING_ENABLED', value: 'false', type: 'boolean', description: 'Enable price-based staking (overrides amount-based staking & MIN_ORB_PRICE_USD)' },
       { key: 'STAKING_PRICE_THRESHOLD_USD', value: '30', type: 'number', description: 'Price threshold: stake if below, unstake+sell if above (overrides MIN_ORB_PRICE_USD when enabled)' },
+      { key: 'PRICE_STAKING_CHECK_INTERVAL_MS', value: '120000', type: 'number', description: 'Price-based staking check interval (ms)' },
 
       // Legacy Auto-Deploy Settings
       { key: 'AUTO_DEPLOY_ITERATIONS', value: '0', type: 'number', description: 'Auto-deploy iterations (0=infinite)' },
