@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, ReferenceLine, Tooltip } from 'recharts';
 import { format, subDays, subMonths } from 'date-fns';
 import { MiningAnimation } from '@/components/mining-animation';
+import { CelebrationAnimations } from '@/components/celebration-animations';
 import { useState } from 'react';
 
 async function fetchStatus() {
@@ -180,6 +181,13 @@ export default function Home() {
 
   return (
     <DashboardLayout>
+      {/* Celebration Animations */}
+      <CelebrationAnimations
+        currentRoundId={status?.round?.id}
+        currentMotherlode={status?.round?.motherlode}
+        motherloadThreshold={status?.automation?.motherloadThreshold || 300}
+      />
+
       <div className="space-y-4">
         {/* Profit & Loss Hero */}
         <Card className="border-primary/50 neon-border overflow-hidden">

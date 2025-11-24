@@ -143,7 +143,7 @@ export async function GET() {
         motherlode: treasury ? Number(treasury.motherlode) / 1e9 : 0,
         startSlot: board.startSlot.toString(),
         endSlot: board.endSlot.toString(),
-        totalDeployed: round ? Number(round.totalDeployed) / 1e9 : 0,
+        totalDeployed: round ? round.deployed.reduce((sum, amt) => sum + Number(amt), 0) / 1e9 : 0,
         activeSquares: round ? round.deployed.filter(amt => Number(amt) > 0).length : 0,
         uniqueMiners: uniqueMinersCount,
         totalDeployments: round ? round.count.reduce((sum, count) => sum + Number(count), 0) : 0,
