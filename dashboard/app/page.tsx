@@ -296,9 +296,9 @@ export default function Home() {
               </div>
 
               <div className="bg-gradient-to-br from-purple-500/10 to-transparent border border-purple-500/20 rounded-lg p-3 lg:p-4">
-                <p className="text-[10px] text-purple-400/80 uppercase tracking-wide mb-1.5 font-semibold">ORB Claimed</p>
+                <p className="text-[10px] text-purple-400/80 uppercase tracking-wide mb-1.5 font-semibold">ORB Swapped</p>
                 <p className="text-2xl font-black text-purple-400 mb-0.5">{(pnl?.breakdown?.income?.orbSwappedCount || 0).toFixed(2)}</p>
-                <p className="text-[9px] text-muted-foreground/60">(after 10% fee)</p>
+                <p className="text-[9px] text-muted-foreground/60">(converted to SOL)</p>
               </div>
 
               <div className="bg-gradient-to-br from-red-500/10 to-transparent border border-red-500/20 rounded-lg p-3 lg:p-4">
@@ -390,10 +390,10 @@ export default function Home() {
                 <span className="text-sm text-muted-foreground">Total Value</span>
                 <div className="text-right">
                   <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/50">
-                    {((status?.balances?.sol || 0) + (status?.balances?.automationSol || 0) + ((status?.balances?.orb || 0) * (status?.prices?.orbPriceSol || 0))).toFixed(4)} SOL
+                    {((status?.balances?.sol || 0) + (status?.balances?.automationSol || 0) + ((status?.balances?.orb || 0) * (status?.prices?.orbPriceSol || 0)) + ((status?.staking?.stakedOrb || 0) * (status?.prices?.orbPriceSol || 0))).toFixed(4)} SOL
                   </Badge>
                   <div className="text-xs text-muted-foreground mt-1">
-                    ${(((status?.balances?.sol || 0) + (status?.balances?.automationSol || 0) + ((status?.balances?.orb || 0) * (status?.prices?.orbPriceSol || 0))) * solPriceUsd).toFixed(2)} USD
+                    ${(((status?.balances?.sol || 0) + (status?.balances?.automationSol || 0) + ((status?.balances?.orb || 0) * (status?.prices?.orbPriceSol || 0)) + ((status?.staking?.stakedOrb || 0) * (status?.prices?.orbPriceSol || 0))) * solPriceUsd).toFixed(2)} USD
                   </div>
                 </div>
               </div>
