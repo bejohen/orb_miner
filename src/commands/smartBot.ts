@@ -126,6 +126,41 @@ async function getDashboardPort(): Promise<string> {
 }
 
 /**
+ * Wait for user to complete setup via dashboard
+ * Polls the setup-status endpoint until setup is complete or user cancels
+ */
+async function waitForSetupCompletion(_port: string): Promise<boolean> {
+  const maxWaitTime = 30 * 60 * 1000; // 30 minutes max wait
+  const pollInterval = 3000; // Check every 3 seconds
+  const startTime = Date.now();
+
+  while (isRunning && (Date.now() - startTime) < maxWaitTime) {
+    try {
+      // Poll the database directly to check if PRIVATE_KEY is set
+      const setting = await getQuery<{ value: string }>(
+        'SELECT value FROM settings WHERE key = ?',
+        ['PRIVATE_KEY']
+      );
+
+      const setupComplete = setting && setting.value && setting.value !== '';
+
+      if (setupComplete) {
+        return true;
+      }
+
+      // Wait before next check
+      await sleep(pollInterval);
+    } catch (error) {
+      logger.debug('Error checking setup status:', error);
+      await sleep(pollInterval);
+    }
+  }
+
+  // Timeout or cancelled
+  return false;
+}
+
+/**
  * Check if mining is profitable based on production cost analysis
  *
  * EV = (Expected ORB × ORB Price in SOL) + Expected SOL Back - Production Cost
@@ -1377,18 +1412,34 @@ export async function smartBotCommand(): Promise<void> {
 
       // Get dashboard port from configuration
       const port = await getDashboardPort();
-      const setupUrl = `http://localhost:${port}/setup`;
 
-      ui.info('The setup wizard has been opened in your browser.');
+      ui.info(`The setup wizard has been opened at http://localhost:${port}/setup`);
       ui.blank();
       ui.info('The wizard will guide you through:');
       ui.info('  • Wallet Private Key (encrypted & secure)');
       ui.info('  • RPC Endpoint (optional, has default)');
       ui.blank();
-      ui.warning('Once setup is complete, restart the bot with: npm run start:bot');
+      ui.info('⏳ Waiting for you to complete setup...');
+      ui.info('   (Press Ctrl+C to cancel)');
       ui.blank();
 
-      throw new Error(`Setup required - visit ${setupUrl}`);
+      // Wait for setup to be completed
+      const setupCompleted = await waitForSetupCompletion(port);
+
+      if (!setupCompleted) {
+        throw new Error('Setup was cancelled or timed out');
+      }
+
+      // Reload config after setup is complete
+      ui.success('✅ Setup completed! Reloading configuration...');
+      config = await refreshConfig();
+
+      // Verify we now have a private key
+      if (isSetupNeeded(config.privateKey)) {
+        throw new Error('Setup completed but PRIVATE_KEY is still not configured');
+      }
+
+      ui.blank();
     }
 
     ui.success('Configuration loaded successfully');

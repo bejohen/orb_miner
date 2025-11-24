@@ -1,11 +1,12 @@
 /**
  * Unified PnL Calculation Module
  *
- * Core Principle: Wallet balance is the source of truth
- * - Starting Balance: What the wallet had at the beginning (baseline)
- * - Current Balance: What the wallet has now (wallet + automation + claimable + ORB value)
+ * Core Principle: Total portfolio value is the source of truth
+ * - Starting Balance: Initial SOL + initial ORB value (baseline)
+ * - Current Balance: Current SOL + current ORB value (wallet + automation + claimable + staked)
  * - Profit = Current Balance - Starting Balance
  *
+ * All holdings (SOL and ORB) are valued at current prices.
  * All other metrics (claims, swaps, fees) are just detailed breakdowns
  * of how the balance changed over time.
  */
@@ -62,7 +63,7 @@ export async function getTruePnL(
   orbPriceSol: number,
   solPriceUsd: number = 0
 ): Promise<TruePnL> {
-  // Get baseline (starting balance)
+  // Get baseline (starting balance - fixed total value in SOL)
   const baselineBalance = await getBaselineBalance();
   const hasBaseline = baselineBalance > 0;
 
@@ -75,14 +76,25 @@ export async function getTruePnL(
     baselineTimestamp = baselineRecord?.timestamp || null;
   }
 
-  // If no baseline, use earliest balance snapshot
+  // If no baseline, use earliest balance snapshot (valued at current prices)
   let startingBalance = baselineBalance;
   if (!hasBaseline) {
-    const earliestBalance = await getQuery<{ wallet_sol: number, automation_sol: number }>(`
-      SELECT wallet_sol, automation_sol FROM balances ORDER BY timestamp ASC LIMIT 1
+    const earliestBalance = await getQuery<{
+      wallet_sol: number;
+      automation_sol: number;
+      wallet_orb: number;
+      staked_orb: number;
+    }>(`
+      SELECT wallet_sol, automation_sol, wallet_orb, staked_orb
+      FROM balances
+      ORDER BY timestamp ASC
+      LIMIT 1
     `);
     if (earliestBalance) {
-      startingBalance = earliestBalance.wallet_sol + earliestBalance.automation_sol;
+      // Value earliest snapshot at current prices
+      const solValue = earliestBalance.wallet_sol + earliestBalance.automation_sol;
+      const orbValue = (earliestBalance.wallet_orb + earliestBalance.staked_orb) * orbPriceSol;
+      startingBalance = solValue + orbValue;
     }
   }
 
@@ -92,15 +104,16 @@ export async function getTruePnL(
   // Bot ORB (wallet + claimable)
   const botOrb = currentWalletOrb + currentClaimableOrb;
 
-  // Total ORB including staked (for display only)
+  // Total ORB including staked
   const totalOrb = botOrb + currentStakedOrb;
   const orbValueSol = totalOrb * orbPriceSol;
   const orbValueUsd = totalOrb * orbPriceSol * solPriceUsd;
 
-  // Current balance for PnL = ONLY SOL (ORB only counts as profit when sold)
-  const currentBalance = totalSol;
+  // Current balance = SOL + ORB value (in SOL)
+  // This gives true portfolio value including all holdings
+  const currentBalance = totalSol + orbValueSol;
 
-  // Calculate profit (ORB is NOT counted until sold)
+  // Calculate profit including ORB holdings
   const profit = currentBalance - startingBalance;
   const profitUsd = profit * solPriceUsd;
 

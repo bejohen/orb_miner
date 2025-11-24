@@ -164,17 +164,18 @@ export default function SetupPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <Alert>
-              <AlertCircle className="h-4 w-4" />
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
               <AlertDescription className="space-y-2">
-                <p className="font-semibold">Important: Restart Required</p>
-                <p>To start mining, you need to restart the bot:</p>
+                <p className="font-semibold">What happens next?</p>
+                <p>If the bot is waiting for setup, it will automatically detect the configuration and start within a few seconds.</p>
+                <p className="mt-2">Otherwise, restart the bot to apply the new settings:</p>
                 <ol className="list-decimal ml-6 mt-2 space-y-1">
-                  <li>Go to your terminal/command prompt where the bot is running</li>
-                  <li>Press <kbd className="px-2 py-1 bg-muted rounded font-mono text-sm">Ctrl+C</kbd> to stop the bot</li>
+                  <li>Go to your terminal where the bot is running</li>
+                  <li>Press <kbd className="px-2 py-1 bg-muted rounded font-mono text-sm">Ctrl+C</kbd> to stop it</li>
                   <li>Run <code className="px-2 py-1 bg-muted rounded font-mono text-sm">npm start</code> to restart</li>
                 </ol>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  If using PM2: <code className="px-2 py-1 bg-muted rounded font-mono text-sm">pm2 restart orb-bot</code>
+                  Using PM2? Run: <code className="px-2 py-1 bg-muted rounded font-mono text-sm">pm2 restart orb-bot</code>
                 </p>
               </AlertDescription>
             </Alert>

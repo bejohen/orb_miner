@@ -637,7 +637,7 @@ export async function getQuickPnLSnapshot(
 // ============================================================================
 
 /**
- * Get baseline (starting) wallet balance
+ * Get baseline (starting) wallet balance (total portfolio value in SOL at baseline time)
  */
 export async function getBaselineBalance(): Promise<number> {
   const baseline = await getQuery<{ sol_amount: number }>(`
@@ -653,23 +653,25 @@ export async function getBaselineBalance(): Promise<number> {
 
 /**
  * Set baseline balance (one-time operation)
+ * @param totalValue - Total portfolio value in SOL (including SOL + ORB value)
+ * @param notes - Optional notes about the baseline (e.g., "5 SOL + 100 ORB @ 0.05")
  */
-export async function setBaselineBalance(solAmount: number): Promise<void> {
+export async function setBaselineBalance(totalValue: number, notes?: string): Promise<void> {
   // Check if baseline already exists
   const existing = await getBaselineBalance();
   if (existing > 0) {
-    logger.info(`Baseline already set to ${existing} SOL. Skipping.`);
+    logger.info(`Baseline already set to ${existing} SOL equivalent. Skipping.`);
     return;
   }
 
   await recordTransaction({
     type: 'baseline',
-    solAmount,
+    solAmount: totalValue,
     status: 'success',
-    notes: 'Initial wallet balance before mining operations'
+    notes: notes || `Initial portfolio value: ${totalValue.toFixed(4)} SOL equivalent`
   });
 
-  logger.info(`Baseline balance set to ${solAmount} SOL`);
+  logger.info(`Baseline balance set to ${totalValue.toFixed(4)} SOL equivalent`);
 }
 
 /**
