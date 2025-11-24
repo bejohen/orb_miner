@@ -326,6 +326,7 @@ export default function Home() {
                 <MiningAnimation
                   isActive={status?.automation?.isActive || false}
                   status={(status?.botStatus as 'mining' | 'waiting' | 'idle') || 'idle'}
+                  deployed={status?.miner?.deployed}
                 />
               </div>
             </div>
@@ -378,104 +379,117 @@ export default function Home() {
 
                 <div className="bg-gradient-to-br from-violet-500/5 to-transparent border border-violet-500/10 rounded p-2 lg:p-2.5">
                   <p className="text-[9px] text-violet-400/60 uppercase tracking-wide mb-0.5">Motherlode</p>
-                  <p className="text-xs font-bold text-violet-400">{(status?.round?.motherlode || 0).toFixed(2)}</p>
+                  <p className="text-xs font-bold text-violet-400">
+                    {(status?.round?.motherlode || 0).toFixed(2)}
+                    <span className="text-[10px] font-normal text-violet-400/60 ml-1">
+                      (${((status?.round?.motherlode || 0) * orbPriceUsd).toFixed(2)})
+                    </span>
+                  </p>
                   <p className="text-[8px] text-muted-foreground/50">ORB rewards</p>
+                </div>
+              </div>
+
+              {/* Bot's Current Deployment */}
+              {status?.miner && status.miner.totalDeployed > 0 && (
+                <div className="mt-3 pt-3 border-t border-green-500/20">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Zap className="h-3 w-3 text-green-400" />
+                    <p className="text-[10px] text-green-400/80 uppercase tracking-wide font-semibold">Your Deployment This Round</p>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 lg:gap-3">
+                    <div className="bg-gradient-to-br from-green-500/10 to-transparent border border-green-500/20 rounded p-2 lg:p-2.5">
+                      <p className="text-[9px] text-green-400/60 uppercase tracking-wide mb-0.5">Your Total</p>
+                      <p className="text-xs font-bold text-green-400">{(status.miner.totalDeployed || 0).toFixed(4)}</p>
+                      <p className="text-[8px] text-muted-foreground/50">SOL deployed</p>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-green-500/10 to-transparent border border-green-500/20 rounded p-2 lg:p-2.5">
+                      <p className="text-[9px] text-green-400/60 uppercase tracking-wide mb-0.5">Your Squares</p>
+                      <p className="text-xs font-bold text-green-400">{status.miner.activeSquares || 0}/25</p>
+                      <p className="text-[8px] text-muted-foreground/50">active positions</p>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-green-500/10 to-transparent border border-green-500/20 rounded p-2 lg:p-2.5">
+                      <p className="text-[9px] text-green-400/60 uppercase tracking-wide mb-0.5">Your Share</p>
+                      <p className="text-xs font-bold text-green-400">
+                        {status.round.totalDeployed > 0
+                          ? ((status.miner.totalDeployed / status.round.totalDeployed) * 100).toFixed(2)
+                          : '0'
+                        }%
+                      </p>
+                      <p className="text-[8px] text-muted-foreground/50">of round total</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Balances Card */}
+        <Card className="border-primary/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Wallet className="h-4 w-4" />
+                Balances
+              </span>
+              <Badge variant="outline" className="bg-primary/20 text-primary border-primary/50">
+                {((status?.balances?.sol || 0) + (status?.balances?.automationSol || 0)).toFixed(4)} SOL
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Main Wallet</span>
+              <div className="text-right">
+                <div className="font-semibold">{status?.balances?.sol?.toFixed(4) || '0'} SOL</div>
+                <div className="text-xs text-muted-foreground">
+                  {status?.balances?.orb?.toFixed(2) || '0'} ORB · ${((status?.balances?.sol || 0) * solPriceUsd).toFixed(2)}
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Automation Bot</span>
+                <Badge variant="outline" className="bg-cyan-500/20 text-cyan-500 border-cyan-500/50 text-xs">
+                  {status?.automation?.isActive ? 'Active' : 'Inactive'}
+                </Badge>
+              </div>
+              <div className="text-right">
+                <div className="font-semibold">{status?.balances?.automationSol?.toFixed(4) || '0'} SOL</div>
+                <div className="text-xs text-muted-foreground">${((status?.balances?.automationSol || 0) * solPriceUsd).toFixed(2)}</div>
+              </div>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Your Staked ORB</span>
+              <div className="text-right">
+                <div className="font-semibold">{status?.staking?.stakedOrb?.toFixed(2) || '0'} ORB</div>
+                <div className="text-xs text-muted-foreground">${((status?.staking?.stakedOrb || 0) * orbPriceUsd).toFixed(2)}</div>
+              </div>
+            </div>
+            <div className="flex justify-between items-center pt-2 border-t">
+              <span className="text-sm text-muted-foreground">ORB Price</span>
+              <div className="text-right flex items-center gap-2">
+                <div>
+                  <div className="font-semibold text-primary">${status?.prices?.orbPriceUsd?.toFixed(2) || '0'}</div>
+                  <div className="text-xs text-muted-foreground">{status?.prices?.orbPriceSol?.toFixed(6) || '0'} SOL</div>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-between items-center pt-2 border-t">
+              <span className="text-sm text-muted-foreground font-semibold">Total Value</span>
+              <div className="text-right">
+                <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/50 font-bold">
+                  {((status?.balances?.sol || 0) + (status?.balances?.automationSol || 0) + ((status?.balances?.orb || 0) * (status?.prices?.orbPriceSol || 0)) + ((status?.staking?.stakedOrb || 0) * (status?.prices?.orbPriceSol || 0))).toFixed(4)} SOL
+                </Badge>
+                <div className="text-xs text-muted-foreground mt-1">
+                  ${(((status?.balances?.sol || 0) + (status?.balances?.automationSol || 0) + ((status?.balances?.orb || 0) * (status?.prices?.orbPriceSol || 0)) + ((status?.staking?.stakedOrb || 0) * (status?.prices?.orbPriceSol || 0))) * solPriceUsd).toFixed(2)} USD
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
-
-        {/* Compact Balances & Info */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Balances */}
-          <Card className="border-primary/30">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <Wallet className="h-4 w-4" />
-                  Balances
-                </span>
-                <Badge variant="outline" className="bg-primary/20 text-primary border-primary/50">
-                  {((status?.balances?.sol || 0) + (status?.balances?.automationSol || 0)).toFixed(4)} SOL Total
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Main Wallet</span>
-                <div className="text-right">
-                  <div className="font-semibold">{status?.balances?.sol?.toFixed(4) || '0'} SOL</div>
-                  <div className="text-xs text-muted-foreground">
-                    {status?.balances?.orb?.toFixed(2) || '0'} ORB · ${((status?.balances?.sol || 0) * solPriceUsd).toFixed(2)}
-                  </div>
-                </div>
-              </div>
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Automation Bot</span>
-                  <Badge variant="outline" className="bg-cyan-500/20 text-cyan-500 border-cyan-500/50 text-xs">
-                    {status?.automation?.isActive ? 'Active' : 'Inactive'}
-                  </Badge>
-                </div>
-                <div className="text-right">
-                  <div className="font-semibold">{status?.balances?.automationSol?.toFixed(4) || '0'} SOL</div>
-                  <div className="text-xs text-muted-foreground">${((status?.balances?.automationSol || 0) * solPriceUsd).toFixed(2)}</div>
-                </div>
-              </div>
-              <div className="flex justify-between items-center pt-2 border-t">
-                <span className="text-sm text-muted-foreground">ORB Price</span>
-                <div className="text-right flex items-center gap-2">
-                  <div>
-                    <div className="font-semibold text-primary">${status?.prices?.orbPriceUsd?.toFixed(2) || '0'}</div>
-                    <div className="text-xs text-muted-foreground">{status?.prices?.orbPriceSol?.toFixed(6) || '0'} SOL</div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Current Round */}
-          <Card className="border-primary/30">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <Activity className="h-4 w-4" />
-                  Current Round
-                </span>
-                <Badge variant="outline" className="font-mono">{status?.round?.id || 'N/A'}</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Prize Pool (Motherlode)</span>
-                <div className="text-right">
-                  <Badge variant="outline" className="bg-primary/20 text-primary border-primary/50 font-bold">
-                    {status?.round?.motherlode?.toFixed(2) || '0'} ORB
-                  </Badge>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    ≈ ${((status?.round?.motherlode || 0) * orbPriceUsd).toFixed(2)} USD
-                  </div>
-                </div>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Your Staked ORB</span>
-                <div className="font-semibold">{status?.staking?.stakedOrb?.toFixed(2) || '0'} ORB</div>
-              </div>
-              <div className="flex justify-between items-center pt-2 border-t">
-                <span className="text-sm text-muted-foreground">Total Value</span>
-                <div className="text-right">
-                  <Badge variant="outline" className="bg-green-500/20 text-green-500 border-green-500/50">
-                    {((status?.balances?.sol || 0) + (status?.balances?.automationSol || 0) + ((status?.balances?.orb || 0) * (status?.prices?.orbPriceSol || 0)) + ((status?.staking?.stakedOrb || 0) * (status?.prices?.orbPriceSol || 0))).toFixed(4)} SOL
-                  </Badge>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    ${(((status?.balances?.sol || 0) + (status?.balances?.automationSol || 0) + ((status?.balances?.orb || 0) * (status?.prices?.orbPriceSol || 0)) + ((status?.staking?.stakedOrb || 0) * (status?.prices?.orbPriceSol || 0))) * solPriceUsd).toFixed(2)} USD
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
 
         {/* Claimable Rewards - Compact Tabs */}
         <Card className="border-primary/30">

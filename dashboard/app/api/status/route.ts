@@ -183,6 +183,9 @@ export async function GET() {
         lifetimeRewardsSol: Number(miner.lifetimeRewardsSol) / 1e9,
         lifetimeRewardsOre: Number(miner.lifetimeRewardsOre) / 1e9,
         hasAutomation: automationBalance > 0,
+        deployed: miner.deployed.map((amt) => Number(amt) / 1e9), // Current round deployments per square
+        totalDeployed: miner.deployed.reduce((sum, amt) => sum + Number(amt), 0) / 1e9,
+        activeSquares: miner.deployed.filter((amt) => Number(amt) > 0).length,
       } : null,
 
       // Treasury info
