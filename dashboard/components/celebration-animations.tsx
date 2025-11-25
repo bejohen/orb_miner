@@ -20,7 +20,7 @@ export function CelebrationAnimations({
   enableMotherloadAnimation = true,
 }: CelebrationAnimationsProps) {
   const [prevRoundId, setPrevRoundId] = useState<string | null>(null);
-  const [prevMotherlode, setPrevMotherlode] = useState<number>(0);
+  const [prevMotherlode, setPrevMotherlode] = useState<number | null>(null);
   const [showRoundConfetti, setShowRoundConfetti] = useState(false);
   const [showMotherloadConfetti, setShowMotherloadConfetti] = useState(false);
   const { width, height } = useWindowSize();
@@ -50,8 +50,8 @@ export function CelebrationAnimations({
   useEffect(() => {
     if (!currentMotherlode || !enableMotherloadAnimation) return;
 
-    if (prevMotherlode === 0) {
-      // First load - just set the value
+    if (prevMotherlode === null) {
+      // First load - just set the value, don't trigger animation
       setPrevMotherlode(currentMotherlode);
       return;
     }
