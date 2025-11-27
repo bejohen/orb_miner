@@ -1131,11 +1131,56 @@ async function priceBasedStaking(): Promise<void> {
     }
 
     // TIER 3: SELL REWARDS (Sell Above <= Price < Take Profit)
-    // Do nothing here - auto-swap handles selling wallet ORB
+    // Actively sell wallet ORB (rewards, mining earnings)
     // Staked ORB stays locked
     if (priceInUsd >= priceStakingSellAboveUsd) {
-      logger.debug(`Sell zone: Price $${priceInUsd.toFixed(2)} >= $${priceStakingSellAboveUsd} - auto-swap will handle wallet ORB`);
-      return; // Auto-swap handles this with priceStakingSellAboveUsd threshold
+      logger.debug(`Sell zone: Price $${priceInUsd.toFixed(2)} >= $${priceStakingSellAboveUsd} - checking for wallet ORB to sell`);
+
+      const balances = await getBalances();
+      const orbToSell = Math.max(0, balances.orb - config.minOrbToKeep);
+
+      // Sell wallet ORB if we have enough (minimum 0.1 ORB to make swap worthwhile)
+      if (orbToSell >= Math.max(0.1, config.minOrbSwapAmount)) {
+        ui.swap(`💰 Sell zone ($${priceInUsd.toFixed(2)} >= $${priceStakingSellAboveUsd}): Selling ${orbToSell.toFixed(2)} ORB...`);
+
+        if (config.dryRun) {
+          logger.info(`[DRY RUN] Would sell ${orbToSell.toFixed(2)} ORB in sell zone (price: $${priceInUsd.toFixed(2)})`);
+          return;
+        }
+
+        try {
+          const result = await swapOrbToSol(orbToSell, config.slippageBps);
+
+          if (result.success && result.solReceived) {
+            ui.success(`Sold ${orbToSell.toFixed(2)} ORB → ${result.solReceived.toFixed(4)} SOL at $${priceInUsd.toFixed(2)}`);
+            logger.debug(`Transaction: ${result.signature}`);
+
+            // Record swap transaction
+            try {
+              await recordTransaction({
+                type: 'swap',
+                signature: result.signature,
+                orbAmount: orbToSell,
+                solAmount: result.solReceived,
+                status: 'success',
+                notes: `Price-based sell: $${priceInUsd.toFixed(2)} >= $${priceStakingSellAboveUsd}`,
+                orbPriceUsd: priceInUsd,
+                txFeeSol: 0.001,
+              });
+            } catch (error) {
+              logger.error('Failed to record price-based swap:', error);
+            }
+          } else {
+            logger.warn('Failed to sell ORB in sell zone - will retry next check');
+          }
+        } catch (error) {
+          logger.error('Price-based sell failed:', error);
+        }
+      } else {
+        logger.debug(`Sell zone: Not enough wallet ORB to sell (have ${balances.orb.toFixed(2)}, need ${Math.max(0.1, config.minOrbSwapAmount)} after keeping ${config.minOrbToKeep})`);
+      }
+
+      return; // Don't stake in sell zone
     }
 
     // TIER 2: HOLD ZONE (Stake Below <= Price < Sell Above)
