@@ -192,7 +192,7 @@ cd BotProjects
 ### Step 3: Download the Bot
 
 ```bash
-git clone https://github.com/CryptoGnome/orb_miner.git
+git clone git@github.com:bejohen/orb_miner.git
 cd orb_miner
 ```
 
@@ -268,7 +268,7 @@ xcode-select --install
 ### Step 4: Download the Bot
 
 ```bash
-git clone https://github.com/CryptoGnome/orb_miner.git
+git clone git@github.com:bejohen/orb_miner.git
 cd orb_miner
 ```
 
@@ -348,7 +348,7 @@ sudo apt install build-essential -y
 
 ```bash
 cd ~
-git clone https://github.com/CryptoGnome/orb_miner.git
+git clone git@github.com:bejohen/orb_miner.git
 cd orb_miner
 ```
 
@@ -736,7 +736,7 @@ npm start
 
 **Manual Check:**
 
-Visit the GitHub repository: [https://github.com/CryptoGnome/orb_miner](https://github.com/CryptoGnome/orb_miner)
+Visit the GitHub repository: [https://github.com/bejohen/orb_miner](https://github.com/bejohen/orb_miner)
 
 Look for the latest commit date on the main page.
 
@@ -1107,7 +1107,7 @@ mv data/orb_mining_recovered.db data/orb_mining.db
 ### Getting Help
 
 **GitHub Issues:**
-[https://github.com/CryptoGnome/orb_miner/issues](https://github.com/CryptoGnome/orb_miner/issues)
+[https://github.com/bejohen/orb_miner/issues](https://github.com/bejohen/orb_miner/issues)
 
 **Before posting:**
 1. Check existing issues for similar problems

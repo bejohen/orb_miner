@@ -46,7 +46,7 @@ For running on your local computer with automatic browser setup:
 
 ```bash
 # 1. Clone and install
-git clone https://github.com/CryptoGnome/orb_miner.git
+git clone git@github.com:bejohen/orb_miner.git
 cd orb_miner
 npm run setup
 
@@ -76,7 +76,7 @@ For running 24/7 on a Linux server (VPS, dedicated server, etc.):
 
 ```bash
 # 1. Clone and install
-git clone https://github.com/CryptoGnome/orb_miner.git
+git clone git@github.com:bejohen/orb_miner.git
 cd orb_miner
 npm run setup
 
@@ -125,7 +125,7 @@ pm2 restart orb-bot orb-dashboard    # Restart both processes (SAFE)
 
 1. **Clone repository**
    ```bash
-   git clone https://github.com/CryptoGnome/orb_miner.git
+   git clone git@github.com:bejohen/orb_miner.git
    cd orb_miner
    ```
 
@@ -650,7 +650,7 @@ This software is provided "as-is" without warranty of any kind. The developers a
 
 ## 💬 Support
 
-[![GitHub Issues](https://img.shields.io/badge/Issues-Report%20Bug-red?style=flat&logo=github)](https://github.com/CryptoGnome/orb_miner/issues)
+[![GitHub Issues](https://img.shields.io/badge/Issues-Report%20Bug-red?style=flat&logo=github)](https://github.com/bejohen/orb_miner/issues)
 [![ORB Protocol](https://img.shields.io/badge/ORB-ore.blue-purple?style=flat&logo=solana)](https://ore.blue/)
 
 **Questions?** Open an issue
@@ -665,8 +665,8 @@ This software is provided "as-is" without warranty of any kind. The developers a
 
 **Made with ❤️ by the community**
 
-[![GitHub stars](https://img.shields.io/github/stars/CryptoGnome/orb_miner?style=social)](https://github.com/CryptoGnome/orb_miner/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/CryptoGnome/orb_miner?style=social)](https://github.com/CryptoGnome/orb_miner/network/members)
+[![GitHub stars](https://img.shields.io/github/stars/bejohen/orb_miner?style=social)](https://github.com/bejohen/orb_miner/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/bejohen/orb_miner?style=social)](https://github.com/bejohen/orb_miner/network/members)
 
 ---
 

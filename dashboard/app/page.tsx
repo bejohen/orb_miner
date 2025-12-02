@@ -19,6 +19,11 @@ import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, ReferenceLine, Tool
 import { format, subDays, subMonths } from 'date-fns';
 import { MiningAnimation } from '@/components/mining-animation';
 import { CelebrationAnimations } from '@/components/celebration-animations';
+import { WelcomeModal } from '@/components/welcome-modal';
+import { SetupChecklist } from '@/components/setup-checklist';
+import { StrategyRecommender } from '@/components/strategy-recommender';
+import { QuickActions } from '@/components/quick-actions';
+import { InfoTooltip, TOOLTIPS } from '@/components/info-tooltip';
 import { useState } from 'react';
 
 async function fetchStatus() {
@@ -191,8 +196,14 @@ export default function Home() {
     ];
   };
 
+  const miningEnabled = settingsData?.settings?.MINING_ENABLED?.value === 'true' || settingsData?.settings?.MINING_ENABLED?.value === true;
+  const hasDeployed = (status?.miner?.totalDeployed || 0) > 0;
+
   return (
     <DashboardLayout>
+      {/* Welcome Modal - First time users */}
+      <WelcomeModal />
+
       {/* Celebration Animations */}
       <CelebrationAnimations
         currentRoundId={status?.round?.id}
@@ -203,6 +214,28 @@ export default function Home() {
       />
 
       <div className="space-y-4">
+        {/* Setup Checklist - For new users */}
+        <SetupChecklist
+          walletBalance={(status?.balances?.sol || 0) + (status?.balances?.automationSol || 0)}
+          hasAutomation={status?.automation?.isActive || false}
+          miningEnabled={miningEnabled}
+          hasDeployed={hasDeployed}
+        />
+
+        {/* Quick Actions + Strategy Recommender */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <QuickActions
+            miningEnabled={miningEnabled}
+            claimableSol={status?.claimable?.sol || 0}
+            claimableOrb={status?.claimable?.orb || 0}
+            walletOrb={status?.balances?.orb || 0}
+            autoSwapThreshold={parseFloat(settingsData?.settings?.WALLET_ORB_SWAP_THRESHOLD?.value || '0.1')}
+          />
+          <StrategyRecommender
+            currentBalance={(status?.balances?.sol || 0) + (status?.balances?.automationSol || 0)}
+          />
+        </div>
+
         {/* Profit & Loss Hero */}
         <Card className="border-primary/50 neon-border overflow-hidden">
           <CardContent className="px-4 py-4 lg:px-6 lg:py-6">

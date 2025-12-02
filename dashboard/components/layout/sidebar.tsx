@@ -24,6 +24,7 @@ import {
   ScrollText,
   X,
   Power,
+  History,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -31,6 +32,7 @@ const navigation = [
   { name: 'Overview', href: '/', icon: LayoutDashboard },
   { name: 'Profitability', href: '/profitability', icon: DollarSign },
   { name: 'Performance', href: '/performance', icon: Activity },
+  { name: 'Mining History', href: '/history', icon: History },
   { name: 'Transactions', href: '/transactions', icon: Receipt },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'Logs', href: '/logs', icon: ScrollText },
@@ -310,7 +312,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps = {}) {
 
         {/* GitHub Link */}
         <a
-          href="https://github.com/CryptoGnome/orb_miner"
+          href="https://github.com/bejohen/orb_miner"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center justify-center gap-2 rounded-lg bg-accent/50 p-3 text-sm text-muted-foreground transition-all hover:bg-accent hover:text-primary"
