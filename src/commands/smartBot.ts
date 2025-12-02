@@ -391,7 +391,8 @@ async function autoSetupAutomation(): Promise<boolean> {
     const deposit = usableBudget;
     const feePerExecution = 0.00001;
     const strategy = AutomationStrategy.Random;
-    const squareMask = 25n;
+    // NOTE: ORB requires mask to be 0 for deploying to all squares (not 25)
+    const squareMask = 0n;
 
     const instruction = buildAutomateInstruction(
       solPerSquare,
