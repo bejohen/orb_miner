@@ -92,16 +92,32 @@ export default function Home() {
   const [showFullDashboard, setShowFullDashboard] = useState(false);
   const queryClient = useQueryClient();
 
+  // Check onboarding state first (less frequently to reduce RPC load)
+  const { data: onboardingData } = useQuery({
+    queryKey: ['onboarding'],
+    queryFn: fetchOnboardingState,
+    refetchInterval: 10000, // Check every 10 seconds during onboarding
+  });
+
+  const onboardingState = onboardingData?.state;
+  const isOnboardingComplete = onboardingState?.completed || onboardingState?.skipped;
+
+  // Reduce query frequency during onboarding to prevent RPC rate limiting
+  const statusRefetchInterval = isOnboardingComplete ? 2500 : 10000; // 2.5s after onboarding, 10s during
+  const pnlRefetchInterval = isOnboardingComplete ? 30000 : false; // Only fetch after onboarding
+  const analyticsRefetchInterval = isOnboardingComplete ? 60000 : false; // Only fetch after onboarding
+
   const { data: status, isLoading: statusLoading } = useQuery({
     queryKey: ['status'],
     queryFn: fetchStatus,
-    refetchInterval: 2500, // Update every 2.5 seconds for round stats
+    refetchInterval: statusRefetchInterval,
   });
 
   const { data: pnl, isLoading: pnlLoading } = useQuery({
     queryKey: ['pnl'],
     queryFn: fetchPnL,
-    refetchInterval: 30000,
+    refetchInterval: pnlRefetchInterval,
+    enabled: isOnboardingComplete, // Only fetch after onboarding
   });
 
   // Calculate limit based on current time range
@@ -110,19 +126,14 @@ export default function Home() {
   const { data: analytics, isLoading: analyticsLoading } = useQuery({
     queryKey: ['analytics', dataLimit],
     queryFn: () => fetchAnalytics(dataLimit),
-    refetchInterval: 60000,
+    refetchInterval: analyticsRefetchInterval,
+    enabled: isOnboardingComplete, // Only fetch after onboarding
   });
 
   const { data: settingsData } = useQuery({
     queryKey: ['settings'],
     queryFn: fetchSettings,
     refetchInterval: 60000, // Refresh every 60 seconds
-  });
-
-  const { data: onboardingData } = useQuery({
-    queryKey: ['onboarding'],
-    queryFn: fetchOnboardingState,
-    refetchInterval: 5000, // Check every 5 seconds during onboarding
   });
 
   const claimMutation = useMutation({
@@ -214,9 +225,7 @@ export default function Home() {
   const miningEnabled = settingsData?.settings?.MINING_ENABLED?.value === 'true' || settingsData?.settings?.MINING_ENABLED?.value === true;
   const hasDeployed = (status?.miner?.totalDeployed || 0) > 0;
 
-  // Onboarding logic
-  const onboardingState = onboardingData?.state;
-  const isOnboardingComplete = onboardingState?.completed || onboardingState?.skipped;
+  // Onboarding display logic (state already defined above)
   const shouldShowSimplified = isOnboardingComplete && !onboardingState?.skipped && !showFullDashboard;
 
   // Get wallet address from status
