@@ -24,8 +24,6 @@ import { SetupChecklist } from '@/components/setup-checklist';
 import { StrategyRecommender } from '@/components/strategy-recommender';
 import { QuickActions } from '@/components/quick-actions';
 import { InfoTooltip, TOOLTIPS } from '@/components/info-tooltip';
-import { OnboardingContainer } from '@/components/onboarding/onboarding-container';
-import { SimplifiedDashboard } from '@/components/onboarding/simplified-dashboard';
 import { useState } from 'react';
 
 async function fetchStatus() {
@@ -50,12 +48,6 @@ async function fetchAnalytics(limit?: number) {
 async function fetchSettings() {
   const res = await fetch('/api/settings');
   if (!res.ok) throw new Error('Failed to fetch settings');
-  return res.json();
-}
-
-async function fetchOnboardingState() {
-  const res = await fetch('/api/onboarding');
-  if (!res.ok) throw new Error('Failed to fetch onboarding state');
   return res.json();
 }
 
@@ -89,7 +81,6 @@ const getDataLimitForTimeRange = (range: TimeRange): number => {
 
 export default function Home() {
   const [timeRange, setTimeRange] = useState<TimeRange>('7d');
-  const [showFullDashboard, setShowFullDashboard] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: status, isLoading: statusLoading } = useQuery({
@@ -117,12 +108,6 @@ export default function Home() {
     queryKey: ['settings'],
     queryFn: fetchSettings,
     refetchInterval: 60000, // Refresh every 60 seconds
-  });
-
-  const { data: onboardingData } = useQuery({
-    queryKey: ['onboarding'],
-    queryFn: fetchOnboardingState,
-    refetchInterval: 5000, // Check every 5 seconds during onboarding
   });
 
   const claimMutation = useMutation({
@@ -214,50 +199,6 @@ export default function Home() {
   const miningEnabled = settingsData?.settings?.MINING_ENABLED?.value === 'true' || settingsData?.settings?.MINING_ENABLED?.value === true;
   const hasDeployed = (status?.miner?.totalDeployed || 0) > 0;
 
-  // Onboarding logic
-  const onboardingState = onboardingData?.state;
-  const isOnboardingComplete = onboardingState?.completed || onboardingState?.skipped;
-  const shouldShowSimplified = isOnboardingComplete && !onboardingState?.skipped && !showFullDashboard;
-
-  // Get wallet address from status
-  const walletAddress = status?.walletAddress || 'Loading...';
-  const currentBalance = (status?.balances?.sol || 0) + (status?.balances?.automationSol || 0);
-
-  // If onboarding is not complete, show onboarding flow
-  if (!isOnboardingComplete) {
-    return (
-      <DashboardLayout>
-        <OnboardingContainer
-          walletAddress={walletAddress}
-          currentBalance={currentBalance}
-          onComplete={() => {
-            queryClient.invalidateQueries({ queryKey: ['onboarding'] });
-          }}
-        />
-      </DashboardLayout>
-    );
-  }
-
-  // If just completed onboarding (not skipped), show simplified dashboard
-  if (shouldShowSimplified) {
-    return (
-      <DashboardLayout>
-        <SimplifiedDashboard
-          netProfit={netPnL}
-          roi={roi}
-          currentBalance={currentBalance}
-          motherlode={status?.round?.motherlode || 0}
-          miningEnabled={miningEnabled}
-          miningStatus={(status?.botStatus as 'mining' | 'waiting' | 'idle') || 'idle'}
-          isAutomationActive={status?.automation?.isActive || false}
-          chartData={chartData}
-          onViewFullDashboard={() => setShowFullDashboard(true)}
-        />
-      </DashboardLayout>
-    );
-  }
-
-  // Otherwise, show full dashboard (original)
   return (
     <DashboardLayout>
       {/* Welcome Modal - First time users */}
