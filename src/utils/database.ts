@@ -126,6 +126,21 @@ async function createTables(): Promise<void> {
       updated_at INTEGER DEFAULT (strftime('%s', 'now'))
     )`,
 
+    // Onboarding state table - track user onboarding progress
+    `CREATE TABLE IF NOT EXISTS onboarding_state (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT DEFAULT 'default',
+      current_step INTEGER DEFAULT 1,
+      completed INTEGER DEFAULT 0,
+      wallet_funded INTEGER DEFAULT 0,
+      strategy_selected TEXT,
+      mining_enabled INTEGER DEFAULT 0,
+      skipped INTEGER DEFAULT 0,
+      started_at INTEGER DEFAULT (strftime('%s', 'now')),
+      completed_at INTEGER,
+      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+    )`,
+
     // Indexes for faster queries
     `CREATE INDEX IF NOT EXISTS idx_transactions_timestamp ON transactions(timestamp)`,
     `CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type)`,
@@ -135,6 +150,7 @@ async function createTables(): Promise<void> {
     `CREATE INDEX IF NOT EXISTS idx_in_flight_resolved ON in_flight_deployments(resolved)`,
     `CREATE INDEX IF NOT EXISTS idx_motherload_timestamp ON motherload_history(timestamp)`,
     `CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key)`,
+    `CREATE INDEX IF NOT EXISTS idx_onboarding_user_id ON onboarding_state(user_id)`,
   ];
 
   for (const sql of tables) {
@@ -1107,4 +1123,113 @@ export async function getMotherloadStats(
     current: latest?.motherload || 0,
     count: stats?.count || 0,
   };
+}
+
+// ============================================================================
+// Onboarding State Management
+// ============================================================================
+
+export interface OnboardingState {
+  id?: number;
+  user_id: string;
+  current_step: number;
+  completed: boolean;
+  wallet_funded: boolean;
+  strategy_selected: string | null;
+  mining_enabled: boolean;
+  skipped: boolean;
+  started_at?: number;
+  completed_at?: number;
+  updated_at?: number;
+}
+
+/**
+ * Get onboarding state for user (default user)
+ */
+export async function getOnboardingState(userId: string = 'default'): Promise<OnboardingState | null> {
+  const sql = `SELECT * FROM onboarding_state WHERE user_id = ? LIMIT 1`;
+  const row = await getQuery<any>(sql, [userId]);
+
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    current_step: row.current_step,
+    completed: Boolean(row.completed),
+    wallet_funded: Boolean(row.wallet_funded),
+    strategy_selected: row.strategy_selected,
+    mining_enabled: Boolean(row.mining_enabled),
+    skipped: Boolean(row.skipped),
+    started_at: row.started_at,
+    completed_at: row.completed_at,
+    updated_at: row.updated_at,
+  };
+}
+
+/**
+ * Initialize onboarding state for new user
+ */
+export async function initOnboardingState(userId: string = 'default'): Promise<void> {
+  const sql = `
+    INSERT OR IGNORE INTO onboarding_state (user_id, current_step, completed, wallet_funded, mining_enabled, skipped)
+    VALUES (?, 1, 0, 0, 0, 0)
+  `;
+  await runQuery(sql, [userId]);
+}
+
+/**
+ * Update onboarding state
+ */
+export async function updateOnboardingState(
+  userId: string = 'default',
+  updates: Partial<OnboardingState>
+): Promise<void> {
+  const fields: string[] = [];
+  const values: any[] = [];
+
+  if (updates.current_step !== undefined) {
+    fields.push('current_step = ?');
+    values.push(updates.current_step);
+  }
+  if (updates.completed !== undefined) {
+    fields.push('completed = ?');
+    values.push(updates.completed ? 1 : 0);
+    if (updates.completed) {
+      fields.push('completed_at = ?');
+      values.push(Math.floor(Date.now() / 1000));
+    }
+  }
+  if (updates.wallet_funded !== undefined) {
+    fields.push('wallet_funded = ?');
+    values.push(updates.wallet_funded ? 1 : 0);
+  }
+  if (updates.strategy_selected !== undefined) {
+    fields.push('strategy_selected = ?');
+    values.push(updates.strategy_selected);
+  }
+  if (updates.mining_enabled !== undefined) {
+    fields.push('mining_enabled = ?');
+    values.push(updates.mining_enabled ? 1 : 0);
+  }
+  if (updates.skipped !== undefined) {
+    fields.push('skipped = ?');
+    values.push(updates.skipped ? 1 : 0);
+  }
+
+  fields.push('updated_at = ?');
+  values.push(Math.floor(Date.now() / 1000));
+
+  values.push(userId);
+
+  const sql = `UPDATE onboarding_state SET ${fields.join(', ')} WHERE user_id = ?`;
+  await runQuery(sql, values);
+}
+
+/**
+ * Reset onboarding state (for testing or re-onboarding)
+ */
+export async function resetOnboardingState(userId: string = 'default'): Promise<void> {
+  const sql = `DELETE FROM onboarding_state WHERE user_id = ?`;
+  await runQuery(sql, [userId]);
 }
