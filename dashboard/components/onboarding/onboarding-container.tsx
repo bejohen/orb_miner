@@ -98,7 +98,7 @@ export function OnboardingContainer({ walletAddress, currentBalance, onComplete 
       setSelectedStrategy(strategyKey);
 
       // Update deployment strategy in settings
-      await updateSettings('DEPLOYMENT_STRATEGY', strategyKey);
+      await updateSettings('DEPLOYMENT_AMOUNT_STRATEGY', strategyKey);
 
       await updateStateMutation.mutateAsync({
         current_step: 3,
