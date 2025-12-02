@@ -657,10 +657,42 @@ export async function sendAndConfirmTransaction(
 
       logger.debug(`${context}: Transaction sent: ${signature}`);
 
-      // Confirm transaction
-      await connection.confirmTransaction(signature, 'confirmed');
+      // Confirm transaction with extended timeout for congested networks
+      try {
+        // Use getLatestBlockhash to get blockhash for timeout strategy
+        const { blockhash: confirmBlockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
 
-      logger.debug(`${context}: Transaction confirmed: ${signature}`);
+        // Confirm with blockhash timeout (more reliable than fixed 60s timeout)
+        await connection.confirmTransaction({
+          signature,
+          blockhash: confirmBlockhash,
+          lastValidBlockHeight,
+        }, 'confirmed');
+
+        logger.debug(`${context}: Transaction confirmed: ${signature}`);
+      } catch (confirmError: any) {
+        // If timeout, check if transaction actually succeeded
+        logger.warn(`${context}: Confirmation timeout/error, checking transaction status...`);
+
+        try {
+          const txStatus = await connection.getSignatureStatus(signature, { searchTransactionHistory: true });
+
+          if (txStatus.value?.confirmationStatus === 'confirmed' || txStatus.value?.confirmationStatus === 'finalized') {
+            logger.info(`${context}: Transaction succeeded despite confirmation timeout: ${signature}`);
+            // Transaction succeeded, continue
+          } else if (txStatus.value?.err) {
+            logger.error(`${context}: Transaction failed: ${JSON.stringify(txStatus.value.err)}`);
+            throw new Error(`Transaction failed: ${JSON.stringify(txStatus.value.err)}`);
+          } else {
+            // Transaction status unknown, propagate original error
+            logger.error(`${context}: Transaction status unknown, will retry`);
+            throw confirmError;
+          }
+        } catch (statusError) {
+          logger.error(`${context}: Failed to check transaction status`);
+          throw confirmError; // Propagate original timeout error
+        }
+      }
 
       // Fetch actual transaction fee
       let actualFee = 0;
