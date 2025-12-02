@@ -220,8 +220,22 @@ export default function Home() {
   const shouldShowSimplified = isOnboardingComplete && !onboardingState?.skipped && !showFullDashboard;
 
   // Get wallet address from status
-  const walletAddress = status?.walletAddress || 'Loading...';
+  const walletAddress = status?.walletAddress || '';
   const currentBalance = (status?.balances?.sol || 0) + (status?.balances?.automationSol || 0);
+
+  // Show loading while fetching initial data
+  if (statusLoading || !status) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-[600px]">
+          <div className="text-center space-y-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+            <p className="text-muted-foreground">Loading dashboard...</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   // If onboarding is not complete, show onboarding flow
   if (!isOnboardingComplete) {

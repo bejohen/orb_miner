@@ -110,13 +110,14 @@ export function Step1Fund({ walletAddress, currentBalance, minBalance, onNext }:
             <label className="text-sm font-medium">Your Wallet Address:</label>
             <div className="flex gap-2">
               <div className="flex-1 bg-muted/50 border border-border rounded-lg p-3 font-mono text-sm break-all">
-                {walletAddress}
+                {walletAddress || 'Loading wallet address...'}
               </div>
               <Button
                 variant="outline"
                 size="icon"
                 onClick={handleCopy}
                 className="flex-shrink-0"
+                disabled={!walletAddress}
               >
                 {copied ? (
                   <CheckCircle className="h-4 w-4 text-green-500" />
