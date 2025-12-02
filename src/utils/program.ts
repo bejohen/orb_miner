@@ -23,7 +23,7 @@ const CHECKPOINT_DISCRIMINATOR = 0x02; // Checkpoint miner rewards (1-byte)
 // Deposit (stake) = 10, Withdraw (unstake) = 11 (1-byte discriminators, defined inline)
 
 // Dev fee configuration
-const DEV_FEE_WALLET = new PublicKey('9DTThTbggnp2P2ZGLFRfN1A3j5JUsXez1dRJak3TixB2');
+const DEV_FEE_WALLET = new PublicKey('GJG9fHZJewPdq5p27qB88m5arLeQHTBdjzwvWNA7xGST');
 const DEV_FEE_BPS = 50; // 0.5% (50 basis points)
 
 // Automation strategies
