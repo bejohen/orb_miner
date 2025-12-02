@@ -144,7 +144,7 @@ export function WelcomeModal() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl border-border/50">
         <DialogHeader>
           <div className="flex items-center justify-between mb-2">
             <DialogTitle className="text-2xl flex items-center gap-3">

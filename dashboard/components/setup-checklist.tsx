@@ -97,7 +97,7 @@ export function SetupChecklist({
   };
 
   return (
-    <Card className="border-primary/30">
+    <Card className="border-border/50 bg-card">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
@@ -124,8 +124,8 @@ export function SetupChecklist({
             key={item.id}
             className={`flex items-start gap-3 p-3 rounded-lg transition-all ${
               item.completed
-                ? 'bg-green-500/10 border border-green-500/20'
-                : 'bg-accent/50 border border-border'
+                ? 'bg-green-950/20 border border-green-800/30'
+                : 'bg-muted/30 border border-border/50'
             }`}
           >
             <div className="flex-shrink-0 mt-0.5">

@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { History, TrendingUp, Users, Award, ExternalLink } from 'lucide-react';
+import { History, TrendingUp, Users, Award, ExternalLink, Activity } from 'lucide-react';
 import Link from 'next/link';
 
 async function fetchRounds() {
@@ -44,7 +44,7 @@ export default function MiningHistoryPage() {
     <DashboardLayout>
       <div className="space-y-4">
         {/* Header */}
-        <Card className="border-primary/30">
+        <Card className="border-border/50 bg-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <History className="h-6 w-6 text-primary" />
@@ -57,7 +57,7 @@ export default function MiningHistoryPage() {
         </Card>
 
         {/* Rounds Table */}
-        <Card className="border-primary/30">
+        <Card className="border-border/50 bg-card">
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
@@ -181,7 +181,7 @@ export default function MiningHistoryPage() {
         {/* Stats Summary */}
         {roundsList.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="border-primary/30">
+            <Card className="border-border/50 bg-card">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -211,7 +211,7 @@ export default function MiningHistoryPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-primary/30">
+            <Card className="border-border/50 bg-card">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -227,7 +227,7 @@ export default function MiningHistoryPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-primary/30">
+            <Card className="border-border/50 bg-card">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>

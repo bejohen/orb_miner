@@ -112,12 +112,12 @@ export function StrategyRecommender({
   const recommended = getRecommendedStrategy();
 
   return (
-    <Card className="border-primary/30">
+    <Card className="border-border/50 bg-card">
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-primary" />
           Strategy Recommendation
-          <Badge variant="outline" className="ml-auto bg-primary/20 text-primary border-primary/50">
+          <Badge variant="outline" className="ml-auto bg-muted text-foreground border-border">
             Based on {currentBalance.toFixed(2)} SOL
           </Badge>
         </CardTitle>

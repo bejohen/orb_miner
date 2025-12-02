@@ -115,7 +115,7 @@ export function QuickActions({
   const shouldSwap = walletOrb >= autoSwapThreshold;
 
   return (
-    <Card className="border-primary/30">
+    <Card className="border-border/50 bg-card">
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Zap className="h-5 w-5 text-primary" />
@@ -130,7 +130,7 @@ export function QuickActions({
               variant="outline"
               onClick={() => toggleMiningMutation.mutate(false)}
               disabled={toggleMiningMutation.isPending}
-              className="w-full border-yellow-500/50 hover:bg-yellow-500/10"
+              className="w-full border-yellow-600/40 hover:bg-yellow-950/20"
             >
               <Pause className="h-4 w-4 mr-2" />
               Pause Mining
@@ -139,7 +139,7 @@ export function QuickActions({
             <Button
               onClick={() => toggleMiningMutation.mutate(true)}
               disabled={toggleMiningMutation.isPending}
-              className="w-full bg-green-500 hover:bg-green-600"
+              className="w-full bg-green-600 hover:bg-green-700"
             >
               <Play className="h-4 w-4 mr-2" />
               Start Mining
@@ -161,14 +161,14 @@ export function QuickActions({
           disabled={claimMutation.isPending || !hasClaimableRewards}
           className={`w-full ${
             hasClaimableRewards
-              ? 'border-green-500/50 hover:bg-green-500/10'
+              ? 'border-green-600/40 hover:bg-green-950/20'
               : ''
           }`}
         >
           <Download className="h-4 w-4 mr-2" />
           {claimMutation.isPending ? 'Claiming...' : 'Claim Rewards'}
           {hasClaimableRewards && (
-            <Badge variant="outline" className="ml-2 bg-green-500/20 text-green-500 border-green-500/50">
+            <Badge variant="outline" className="ml-2 bg-green-950/30 text-green-400 border-green-800/50">
               {claimableSol.toFixed(2)} SOL
             </Badge>
           )}
@@ -181,14 +181,14 @@ export function QuickActions({
           disabled={swapMutation.isPending || !shouldSwap}
           className={`w-full ${
             shouldSwap
-              ? 'border-purple-500/50 hover:bg-purple-500/10'
+              ? 'border-purple-600/40 hover:bg-purple-950/20'
               : ''
           }`}
         >
           <RefreshCw className="h-4 w-4 mr-2" />
           {swapMutation.isPending ? 'Swapping...' : 'Swap ORB → SOL'}
           {shouldSwap && (
-            <Badge variant="outline" className="ml-2 bg-purple-500/20 text-purple-500 border-purple-500/50">
+            <Badge variant="outline" className="ml-2 bg-purple-950/30 text-purple-400 border-purple-800/50">
               {walletOrb.toFixed(2)} ORB
             </Badge>
           )}
@@ -205,7 +205,7 @@ export function QuickActions({
         {/* Status Info */}
         <div className="pt-2 border-t space-y-2">
           {!miningEnabled && (
-            <div className="flex items-start gap-2 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+            <div className="flex items-start gap-2 p-2 rounded-lg bg-yellow-950/20 border border-yellow-800/30">
               <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
               <p className="text-xs text-yellow-500">
                 Mining is paused. Click "Start Mining" to resume.
