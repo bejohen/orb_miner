@@ -184,6 +184,7 @@ export async function GET() {
 
     const status = {
       timestamp: new Date().toISOString(),
+      walletAddress: wallet.publicKey.toBase58(),
 
       // Current round info
       round: {
