@@ -43,7 +43,7 @@ async function updateSettings(key: string, value: any) {
 
 export function OnboardingContainer({ walletAddress, currentBalance, onComplete }: OnboardingContainerProps) {
   const queryClient = useQueryClient();
-  const MIN_BALANCE = 0.1; // 0.1 SOL minimum
+  const MIN_BALANCE = 0.15; // 0.15 SOL minimum (90% = 0.135 SOL for automation)
 
   const { data: onboardingData } = useQuery({
     queryKey: ['onboarding'],
