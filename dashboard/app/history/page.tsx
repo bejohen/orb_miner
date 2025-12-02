@@ -81,9 +81,9 @@ export default function MiningHistoryPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    roundsList.map((round: any) => (
+                    roundsList.map((round: any, index: number) => (
                       <TableRow
-                        key={round.roundId}
+                        key={`round-${round.roundId}-${index}`}
                         className="hover:bg-accent/50 transition-colors"
                       >
                         {/* Round Number */}
