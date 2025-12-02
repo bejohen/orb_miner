@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Rocket, CheckCircle, Loader2, Sparkles } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 interface Step3EnableProps {
   selectedStrategy: string;
@@ -25,11 +26,35 @@ export function Step3Enable({ selectedStrategy, currentBalance, onFinish, onBack
 
   const handleStartMining = async () => {
     setIsEnabling(true);
-    // Trigger akan dilakukan di parent component
-    // Simulasi delay untuk UX
-    setTimeout(() => {
+    try {
+      // Check if baseline exists
+      const checkRes = await fetch('/api/baseline');
+      const checkData = await checkRes.json();
+
+      // Set baseline if it doesn't exist
+      if (!checkData.hasBaseline) {
+        toast.info('Setting up profit tracking...');
+        const baselineRes = await fetch('/api/baseline', { method: 'POST' });
+        if (!baselineRes.ok) {
+          const errorData = await baselineRes.json();
+          // If baseline already exists (race condition), that's fine
+          if (!errorData.error?.includes('already set')) {
+            throw new Error(errorData.error || 'Failed to set baseline');
+          }
+        } else {
+          toast.success('Profit tracking initialized!');
+        }
+      }
+
+      // Enable mining (automation already setup, just mark onboarding complete)
       onFinish();
-    }, 1000);
+    } catch (error: any) {
+      console.error('Failed to start mining:', error);
+      toast.error('Failed to initialize', {
+        description: error.message || 'Please try again',
+      });
+      setIsEnabling(false);
+    }
   };
 
   return (
