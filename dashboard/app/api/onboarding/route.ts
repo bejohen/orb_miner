@@ -5,7 +5,8 @@ import {
   updateOnboardingState,
   resetOnboardingState,
   OnboardingState,
-} from '@/../../src/utils/database';
+} from '@bot/utils/database';
+import { ensureBotInitialized } from '@/lib/init-bot';
 
 /**
  * GET /api/onboarding
@@ -13,6 +14,7 @@ import {
  */
 export async function GET(request: NextRequest) {
   try {
+    await ensureBotInitialized();
     const userId = 'default'; // Single user system
 
     // Try to get existing state
@@ -40,6 +42,7 @@ export async function GET(request: NextRequest) {
  */
 export async function PATCH(request: NextRequest) {
   try {
+    await ensureBotInitialized();
     const userId = 'default';
     const body = await request.json();
 
@@ -104,6 +107,7 @@ export async function PATCH(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
+    await ensureBotInitialized();
     const userId = 'default';
     await resetOnboardingState(userId);
 
