@@ -59,8 +59,8 @@ export default function Performance() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rounds.map((round: any) => (
-                    <TableRow key={round.round_id}>
+                  {rounds.map((round: any, index: number) => (
+                    <TableRow key={`round-${round.round_id}-${index}`}>
                       <TableCell className="font-mono text-sm">{round.round_id}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {formatDistance(new Date(round.timestamp), new Date(), { addSuffix: true })}
