@@ -17,7 +17,7 @@ async function fetchStatus() {
 
 const navItems = [
   { href: '/', label: 'HOME' },
-  { href: '/dashboard', label: 'OVERVIEW' },
+  { href: '/dashboard', label: 'DASHBOARD' },
   { href: '/profitability', label: 'PROFITABILITY' },
   { href: '/performance', label: 'PERFORMANCE' },
   { href: '/history', label: 'HISTORY' },

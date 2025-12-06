@@ -70,7 +70,7 @@ export default function LandingPage() {
             {/* Desktop Nav */}
             <nav className="hidden md:flex items-center gap-4">
               <Link href="/" className="text-sm text-primary font-medium px-2 py-1">HOME</Link>
-              <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1">OVERVIEW</Link>
+              <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1">DASHBOARD</Link>
               <Link href="/profitability" className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1">PROFITABILITY</Link>
               <Link href="/performance" className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1">PERFORMANCE</Link>
               <Link href="/history" className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1">HISTORY</Link>
