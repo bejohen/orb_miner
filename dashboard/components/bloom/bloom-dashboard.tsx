@@ -104,9 +104,9 @@ export function BloomDashboard({ onViewLegacy }: BloomDashboardProps) {
   }));
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen orb-background">
       {/* Top Navigation Bar */}
-      <header className="sticky top-0 z-50 border-b border-border/30 bg-background/95 backdrop-blur">
+      <header className="sticky top-0 z-50 border-b border-border/30 bg-card/80 backdrop-blur-xl">
         <div className="flex items-center justify-between px-4 py-3">
           {/* Logo & Nav */}
           <div className="flex items-center gap-6">
