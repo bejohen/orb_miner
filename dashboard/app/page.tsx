@@ -26,7 +26,8 @@ import { QuickActions } from '@/components/quick-actions';
 import { InfoTooltip, TOOLTIPS } from '@/components/info-tooltip';
 import { OnboardingContainer } from '@/components/onboarding/onboarding-container';
 import { SimplifiedDashboard } from '@/components/onboarding/simplified-dashboard';
-import { useState } from 'react';
+import { BloomDashboard } from '@/components/bloom/bloom-dashboard';
+import { useState, useEffect } from 'react';
 
 async function fetchStatus() {
   const res = await fetch('/api/status');
@@ -90,6 +91,7 @@ const getDataLimitForTimeRange = (range: TimeRange): number => {
 export default function Home() {
   const [timeRange, setTimeRange] = useState<TimeRange>('7d');
   const [showFullDashboard, setShowFullDashboard] = useState(false);
+  const [useBloomDashboard, setUseBloomDashboard] = useState(true); // New Bloom UI by default
   const queryClient = useQueryClient();
 
   // Check onboarding state first (less frequently to reduce RPC load)
@@ -280,7 +282,16 @@ export default function Home() {
     );
   }
 
-  // Otherwise, show full dashboard (original)
+  // Show new Bloom Dashboard (default) or legacy dashboard
+  if (useBloomDashboard) {
+    return (
+      <BloomDashboard
+        onViewLegacy={() => setUseBloomDashboard(false)}
+      />
+    );
+  }
+
+  // Otherwise, show legacy full dashboard
   return (
     <DashboardLayout>
       {/* Welcome Modal - First time users */}
