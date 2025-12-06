@@ -68,19 +68,15 @@ export default function LandingPage() {
             </div>
 
             {/* Desktop Nav */}
-            <nav className="hidden md:flex items-center gap-6">
-              <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-primary transition-colors font-medium">
-                DASHBOARD
-              </Link>
-              <Link href="/history" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                MINING
-              </Link>
-              <Link href="/rewards" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                REWARDS
-              </Link>
-              <Link href="/analytics" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                ANALYTICS
-              </Link>
+            <nav className="hidden md:flex items-center gap-4">
+              <Link href="/" className="text-sm text-primary font-medium px-2 py-1">HOME</Link>
+              <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1">OVERVIEW</Link>
+              <Link href="/profitability" className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1">PROFITABILITY</Link>
+              <Link href="/performance" className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1">PERFORMANCE</Link>
+              <Link href="/history" className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1">HISTORY</Link>
+              <Link href="/transactions" className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1">TRANSACTIONS</Link>
+              <Link href="/analytics" className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1">ANALYTICS</Link>
+              <Link href="/settings" className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1">SETTINGS</Link>
             </nav>
           </div>
 

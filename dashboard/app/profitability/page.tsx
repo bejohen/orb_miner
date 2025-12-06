@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { DashboardLayout } from '@/components/layout/dashboard-layout';
+import { BloomLayout } from '@/components/bloom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -23,11 +23,11 @@ export default function Profitability() {
 
   if (isLoading) {
     return (
-      <DashboardLayout>
+      <BloomLayout>
         <div className="flex h-full items-center justify-center">
           <DollarSign className="h-12 w-12 animate-pulse text-primary" />
         </div>
-      </DashboardLayout>
+      </BloomLayout>
     );
   }
 
@@ -35,7 +35,7 @@ export default function Profitability() {
   const solPriceUsd = pnl?.solPriceUsd || 0;
 
   return (
-    <DashboardLayout>
+    <BloomLayout>
       <div className="space-y-4">
         {/* Net PnL Hero */}
         <Card className="border-border/50 bg-card">
@@ -271,6 +271,6 @@ export default function Profitability() {
           </CardContent>
         </Card>
       </div>
-    </DashboardLayout>
+    </BloomLayout>
   );
 }

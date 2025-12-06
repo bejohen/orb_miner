@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { DashboardLayout } from '@/components/layout/dashboard-layout';
+import { BloomLayout } from '@/components/bloom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -30,18 +30,18 @@ export default function MiningHistoryPage() {
 
   if (isLoading) {
     return (
-      <DashboardLayout>
+      <BloomLayout>
         <div className="flex h-full items-center justify-center">
           <History className="h-12 w-12 animate-pulse text-primary" />
         </div>
-      </DashboardLayout>
+      </BloomLayout>
     );
   }
 
   const roundsList = rounds?.rounds || [];
 
   return (
-    <DashboardLayout>
+    <BloomLayout>
       <div className="space-y-4">
         {/* Header */}
         <Card className="border-border/50 bg-card">
@@ -246,6 +246,6 @@ export default function MiningHistoryPage() {
           </div>
         )}
       </div>
-    </DashboardLayout>
+    </BloomLayout>
   );
 }

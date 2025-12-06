@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { DashboardLayout } from '@/components/layout/dashboard-layout';
+import { BloomLayout } from '@/components/bloom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -340,7 +340,7 @@ export default function SettingsPage() {
 
   if (isLoading || !data) {
     return (
-      <DashboardLayout>
+      <BloomLayout>
         <div className="space-y-6">
           <div>
             <h1 className="text-3xl font-bold text-primary flex items-center gap-3">
@@ -371,7 +371,7 @@ export default function SettingsPage() {
             ))}
           </div>
         </div>
-      </DashboardLayout>
+      </BloomLayout>
     );
   }
 
@@ -379,7 +379,7 @@ export default function SettingsPage() {
   const categories = Object.keys(CATEGORY_CONFIG) as Array<keyof typeof CATEGORY_CONFIG>;
 
   return (
-    <DashboardLayout>
+    <BloomLayout>
       <TooltipProvider delayDuration={200}>
         <div className="space-y-6">
           {/* Header */}
@@ -933,6 +933,6 @@ export default function SettingsPage() {
           </DialogContent>
         </Dialog>
       </TooltipProvider>
-    </DashboardLayout>
+    </BloomLayout>
   );
 }

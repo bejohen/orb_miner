@@ -1,7 +1,6 @@
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { Zap } from 'lucide-react';
 import { OnboardingContainer } from '@/components/onboarding/onboarding-container';
 import { BloomDashboard } from '@/components/bloom/bloom-dashboard';
@@ -44,29 +43,29 @@ export default function DashboardPage() {
   // Show loading while fetching initial data
   if (statusLoading || !status) {
     return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center min-h-[600px]">
-          <div className="text-center space-y-4">
-            <Zap className="h-12 w-12 animate-pulse text-primary mx-auto" />
-            <p className="text-muted-foreground">Loading dashboard...</p>
-          </div>
+      <div className="min-h-screen orb-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Zap className="h-12 w-12 animate-pulse text-primary mx-auto" />
+          <p className="text-muted-foreground">Loading dashboard...</p>
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
-  // If onboarding is not complete, show onboarding flow
+  // If onboarding is not complete, show onboarding flow with Bloom layout
   if (!isOnboardingComplete) {
     return (
-      <DashboardLayout>
-        <OnboardingContainer
-          walletAddress={walletAddress}
-          currentBalance={currentBalance}
-          onComplete={() => {
-            queryClient.invalidateQueries({ queryKey: ['onboarding'] });
-          }}
-        />
-      </DashboardLayout>
+      <div className="min-h-screen orb-background">
+        <div className="container mx-auto px-4 py-8">
+          <OnboardingContainer
+            walletAddress={walletAddress}
+            currentBalance={currentBalance}
+            onComplete={() => {
+              queryClient.invalidateQueries({ queryKey: ['onboarding'] });
+            }}
+          />
+        </div>
+      </div>
     );
   }
 

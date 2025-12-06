@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { DashboardLayout } from '@/components/layout/dashboard-layout';
+import { BloomLayout } from '@/components/bloom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -23,11 +23,11 @@ export default function Transactions() {
 
   if (isLoading) {
     return (
-      <DashboardLayout>
+      <BloomLayout>
         <div className="flex h-full items-center justify-center">
           <Receipt className="h-12 w-12 animate-pulse text-primary" />
         </div>
-      </DashboardLayout>
+      </BloomLayout>
     );
   }
 
@@ -47,7 +47,7 @@ export default function Transactions() {
   };
 
   return (
-    <DashboardLayout>
+    <BloomLayout>
       <div className="space-y-4">
         <Card className="border-primary/30">
           <CardHeader className="pb-3">
@@ -123,6 +123,6 @@ export default function Transactions() {
           </CardContent>
         </Card>
       </div>
-    </DashboardLayout>
+    </BloomLayout>
   );
 }

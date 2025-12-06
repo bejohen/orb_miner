@@ -5,3 +5,6 @@ export { HashRateChart } from './hashrate-chart';
 export { AIMiningAssistant } from './ai-mining-assistant';
 export { LiveActivityFeed } from './live-activity-feed';
 export { NetworkOverview } from './network-overview';
+export { BloomHeader } from './bloom-header';
+export { BloomLayout } from './bloom-layout';
+export { BloomDashboard } from './bloom-dashboard';
