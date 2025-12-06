@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Settings, Bell, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import Link from 'next/link';
 
 import { NetworkStatsTicker } from './network-stats-ticker';
 import { HeroSection } from './hero-section';
@@ -45,11 +46,7 @@ async function updateSetting(key: string, value: any) {
   return res.json();
 }
 
-interface BloomDashboardProps {
-  onViewLegacy?: () => void;
-}
-
-export function BloomDashboard({ onViewLegacy }: BloomDashboardProps) {
+export function BloomDashboard() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const queryClient = useQueryClient();
 
@@ -122,10 +119,11 @@ export function BloomDashboard({ onViewLegacy }: BloomDashboardProps) {
 
             {/* Desktop Nav */}
             <nav className="hidden md:flex items-center gap-6">
-              <a href="/" className="text-sm text-primary font-medium">DASHBOARD</a>
-              <a href="/history" className="text-sm text-muted-foreground hover:text-foreground transition-colors">MINING</a>
-              <a href="/rewards" className="text-sm text-muted-foreground hover:text-foreground transition-colors">REWARDS</a>
-              <a href="/analytics" className="text-sm text-muted-foreground hover:text-foreground transition-colors">ANALYTICS</a>
+              <Link href="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors">HOME</Link>
+              <Link href="/dashboard" className="text-sm text-primary font-medium">DASHBOARD</Link>
+              <Link href="/history" className="text-sm text-muted-foreground hover:text-foreground transition-colors">MINING</Link>
+              <Link href="/rewards" className="text-sm text-muted-foreground hover:text-foreground transition-colors">REWARDS</Link>
+              <Link href="/analytics" className="text-sm text-muted-foreground hover:text-foreground transition-colors">ANALYTICS</Link>
             </nav>
           </div>
 
@@ -224,19 +222,6 @@ export function BloomDashboard({ onViewLegacy }: BloomDashboardProps) {
           </div>
         </div>
 
-        {/* Legacy Dashboard Link */}
-        {onViewLegacy && (
-          <div className="text-center pt-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onViewLegacy}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              Switch to Legacy Dashboard
-            </Button>
-          </div>
-        )}
       </main>
     </div>
   );
