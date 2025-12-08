@@ -51,71 +51,78 @@ export default function LandingPage() {
   }));
 
   return (
-    <div className="min-h-screen orb-background">
+    <div className="min-h-screen bg-background relative overflow-hidden">
+      {/* Background effects */}
+      <div className="fixed inset-0 grid-bg pointer-events-none opacity-30" />
+      <div className="fixed inset-0 scanline pointer-events-none opacity-50" />
+
+      {/* Ambient glow */}
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
+      <div className="fixed bottom-0 right-0 w-[600px] h-[300px] bg-accent/10 rounded-full blur-[100px] pointer-events-none" />
+
       {/* Top Navigation Bar */}
-      <header className="sticky top-0 z-50 border-b border-border/30 bg-card/80 backdrop-blur-xl">
-        <div className="flex items-center justify-between px-4 py-3">
-          {/* Logo & Nav */}
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-                <span className="text-primary font-bold">O</span>
+      <header className="w-full px-6 py-4 flex items-center justify-between border-b border-border bg-card/50 backdrop-blur-md sticky top-0 z-50">
+        {/* Logo & Nav */}
+        <div className="flex items-center gap-6">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="relative">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary via-accent to-primary flex items-center justify-center box-glow">
+                <span className="text-xl font-bold text-primary-foreground font-display">O</span>
               </div>
-              <div>
-                <span className="font-bold text-foreground">ORB MINER</span>
-                <span className="text-xs text-muted-foreground ml-2">v1.8.0 • SOLANA</span>
-              </div>
+              <div className="absolute -inset-1 rounded-xl bg-primary/20 blur-md -z-10" />
             </div>
+            <div>
+              <h1 className="text-xl font-bold font-display gradient-text">ORB MINER</h1>
+              <p className="text-xs text-muted-foreground font-mono">v1.8.0 • SOLANA</p>
+            </div>
+          </Link>
 
-            {/* Desktop Nav */}
-            <nav className="hidden md:flex items-center gap-4">
-              <Link href="/" className="text-sm text-primary font-medium px-2 py-1">HOME</Link>
-              <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1">DASHBOARD</Link>
-              <Link href="/profitability" className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1">PROFITABILITY</Link>
-              <Link href="/performance" className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1">PERFORMANCE</Link>
-              <Link href="/history" className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1">HISTORY</Link>
-              <Link href="/transactions" className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1">TRANSACTIONS</Link>
-              <Link href="/analytics" className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1">ANALYTICS</Link>
-              <Link href="/settings" className="text-sm text-muted-foreground hover:text-foreground transition-colors px-2 py-1">SETTINGS</Link>
-            </nav>
-          </div>
-
-          {/* Right Actions */}
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="hidden md:flex">
-              <Bell className="w-5 h-5 text-muted-foreground" />
-            </Button>
-            <Button variant="ghost" size="icon" className="hidden md:flex">
-              <Settings className="w-5 h-5 text-muted-foreground" />
-            </Button>
-            <Link href="/dashboard">
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-primary/50 text-primary hover:bg-primary/10"
-              >
-                Dashboard
-              </Button>
-            </Link>
-          </div>
+          {/* Desktop Nav */}
+          <nav className="hidden lg:flex items-center gap-1">
+            {["Dashboard", "Profitability", "Performance", "Analytics"].map((item) => (
+              <Link key={item} href={`/${item.toLowerCase()}`}>
+                <Button variant="ghost" size="sm" className="text-xs uppercase tracking-wider">
+                  {item}
+                </Button>
+              </Link>
+            ))}
+          </nav>
         </div>
 
-        {/* Network Stats Ticker */}
-        <NetworkStatsTicker
-          orbPriceSol={status?.prices?.orbPriceSol || 0.00847}
-          orbPriceChange={2.4}
-          networkHash="142.8 TH/s"
-          networkHashChange={-0.8}
-          activeMiners={status?.round?.uniqueMiners || 12847}
-          activeMinerChange={156}
-          blockHeight={status?.round?.id || 8291042}
-          difficulty="4.28T"
-          difficultyChange={0.2}
-        />
+        {/* Right Actions */}
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" className="relative">
+            <Bell className="w-4 h-4" />
+            <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full" />
+          </Button>
+          <Link href="/settings">
+            <Button variant="ghost" size="icon">
+              <Settings className="w-4 h-4" />
+            </Button>
+          </Link>
+          <Link href="/dashboard">
+            <Button variant="outline" size="sm" className="gap-2 border-primary/30 text-primary hover:bg-primary/10">
+              <span className="hidden sm:inline">Connect</span>
+            </Button>
+          </Link>
+        </div>
       </header>
 
+      {/* Network Stats Ticker */}
+      <NetworkStatsTicker
+        orbPriceSol={status?.prices?.orbPriceSol || 0.00847}
+        orbPriceChange={2.4}
+        networkHash="142.8 TH/s"
+        networkHashChange={-0.8}
+        activeMiners={status?.round?.uniqueMiners || 12847}
+        activeMinerChange={156}
+        blockHeight={status?.round?.id || 8291042}
+        difficulty="4.28T"
+        difficultyChange={0.2}
+      />
+
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-6 space-y-6">
+      <main className="container mx-auto px-4 py-8 relative z-10">
         {/* Hero Section */}
         <HeroSection
           networkStatus="optimal"
@@ -163,6 +170,19 @@ export default function LandingPage() {
             />
           </div>
         </div>
+
+        {/* Terminal Footer */}
+        <footer className="mt-12 pt-6 border-t border-border text-center">
+          <div className="flex flex-wrap justify-center gap-6 text-xs text-muted-foreground font-mono">
+            <span>BLOCK: #{status?.round?.id?.toLocaleString() || "8,291,042"}</span>
+            <span>•</span>
+            <span>EPOCH: 428</span>
+            <span>•</span>
+            <span>TPS: 2,847</span>
+            <span>•</span>
+            <span className="text-primary">CONNECTED TO SOLANA MAINNET</span>
+          </div>
+        </footer>
       </main>
     </div>
   );
